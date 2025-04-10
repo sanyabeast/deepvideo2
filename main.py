@@ -4,16 +4,13 @@ import random
 import yaml
 import os
 import re
+import argparse
 
 # ─────────────────────────────────────────────────────
 # 🎲 CONFIGURATION
 # ─────────────────────────────────────────────────────
 seed = random.randint(0, 1000000)
-model_name = "gemma-3-12b-it"
-
-model = lms.llm(model_name, config={
-    "seed": seed,
-})
+default_model_name = "meta-llama-3.1-8b-instruct"
 
 # ─────────────────────────────────────────────────────
 # 📦 MODELS
@@ -38,13 +35,21 @@ def to_snake_case(text: str) -> str:
     text = re.sub(r'[^\w\s]', '', text).lower()
     return re.sub(r'\s+', '_', text)
 
-def get_available_music():
+def get_available_music(limit=6):
     music_dir = os.path.join("lib", "music")
-    return [f for f in os.listdir(music_dir) if os.path.isfile(os.path.join(music_dir, f))]
+    all_music = [f for f in os.listdir(music_dir) if os.path.isfile(os.path.join(music_dir, f))]
+    # Randomly select a subset if we have more than the limit
+    if len(all_music) > limit:
+        return random.sample(all_music, limit)
+    return all_music
 
-def get_available_videos():
+def get_available_videos(limit=6):
     videos_dir = os.path.join("lib", "videos")
-    return [f for f in os.listdir(videos_dir) if os.path.isfile(os.path.join(videos_dir, f))]
+    all_videos = [f for f in os.listdir(videos_dir) if os.path.isfile(os.path.join(videos_dir, f))]
+    # Randomly select a subset if we have more than the limit
+    if len(all_videos) > limit:
+        return random.sample(all_videos, limit)
+    return all_videos
 
 def print_header(title: str):
     print(f"\n{'='*50}")
@@ -57,7 +62,7 @@ def print_subheader(title: str):
 # ─────────────────────────────────────────────────────
 # 🧠 LLM PROMPTS
 # ─────────────────────────────────────────────────────
-def get_topics() -> TopicsList:
+def get_topics(model) -> TopicsList:
     print_header(f"Generating fresh motivational topics (seed: {seed})")
 
     chat = lms.Chat()
@@ -87,12 +92,12 @@ Output a JSON like:
     
     return topics
 
-def get_scenario(topic):
+def get_scenario(model, topic):
     print_header(f"Creating short-form video scenario for:\n📌 {topic}")
     
-    # Get available media files
-    available_music = get_available_music()
-    available_videos = get_available_videos()
+    # Get available media files (limited to 6 each)
+    available_music = get_available_music(6)
+    available_videos = get_available_videos(6)
     
     print_subheader("🎵 Available music files:")
     for i, music in enumerate(available_music, 1):
@@ -110,10 +115,10 @@ You are a short-form video copywriter crafting motivational videos for TikTok, R
 Create a **micro-story split into short slides** (like Instagram story frames) for the topic: "{topic}"
 
 📏 Constraints:
-- Total video duration: **5–15 seconds max**
+- Total video duration: **8-16 seconds max**
 - Each slide: **very short sentence or phrase**, 3–8 words
 - Each slide duration: **1 to 4 seconds** (max)
-- Max 5 slides
+- Max 8 slides
 
 📢 Style:
 - Ultra-punchy and emotionally charged
@@ -171,20 +176,48 @@ def save_yaml(filename: str, data: dict):
 # 🚀 MAIN ENTRY
 # ─────────────────────────────────────────────────────
 def main():
+    global seed
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Generate motivational video scenarios')
+    parser.add_argument('-n', '--iterations', type=int, default=1, 
+                        help='Number of scenarios to generate (default: 1)')
+    parser.add_argument('-m', '--model', type=str, default=default_model_name,
+                        help=f'Model name to use (default: {default_model_name})')
+    args = parser.parse_args()
+    
+    # Initialize the model with the specified model name
+    model_name = args.model
+    model = lms.llm(model_name, config={
+        "seed": seed,
+    })
+    
     print(f"\n✨ Using model: {model_name}")
     print(f"🔑 Random seed: {seed}")
-
-    topics = get_topics()
-    selected_topic = random.choice(topics)
     
-    print_subheader(f"🎯 Selected topic: {selected_topic}")
-
-    scenario = get_scenario(selected_topic)
-
-    snake_topic = to_snake_case(selected_topic)
-    filename = f"{seed}_{snake_topic[:128]}.yaml"
-    save_yaml(filename, scenario)
-
+    # Run the specified number of iterations
+    for i in range(args.iterations):
+        if args.iterations > 1:
+            print(f"\n🔄 Iteration {i+1}/{args.iterations}")
+            # Generate a new seed for each iteration except the first one
+            if i > 0:
+                seed = random.randint(0, 1000000)
+                print(f"🔑 New seed: {seed}")
+                # Update model seed for new iteration
+                model = lms.llm(model_name, config={
+                    "seed": seed,
+                })
+        
+        topics = get_topics(model)
+        selected_topic = random.choice(topics)
+        
+        print_subheader(f"🎯 Selected topic: {selected_topic}")
+        
+        scenario = get_scenario(model, selected_topic)
+        
+        snake_topic = to_snake_case(selected_topic)
+        filename = f"{seed}_{snake_topic[:128]}.yaml"
+        save_yaml(filename, scenario)
+    
     print("\n🎉 All done!")
 
 if __name__ == "__main__":
