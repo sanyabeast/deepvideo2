@@ -35,16 +35,14 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 def get_random_font():
     """Get a random font from the fonts directory."""
     if not os.path.exists(FONTS_DIR):
-        print(f"⚠️ Fonts directory not found: {FONTS_DIR}")
         return None
     
-    font_files = [f for f in os.listdir(FONTS_DIR) if f.lower().endswith(('.ttf', '.otf'))]
+    font_files = [os.path.join(FONTS_DIR, f) for f in os.listdir(FONTS_DIR) if f.endswith(('.ttf', '.otf'))]
     if not font_files:
-        print("⚠️ No font files found in the fonts directory.")
         return None
     
-    random_font = random.choice(font_files)
-    return os.path.join(FONTS_DIR, random_font)
+    # Since there's only one font, just return it directly
+    return font_files[0]
 
 def find_random_scenario():
     """Find a random scenario that hasn't been processed yet."""
@@ -137,7 +135,7 @@ def create_text_clip(text, duration, start_time, video_size):
     
     # Use a random font from the fonts directory
     font_path = get_random_font()
-    font_size = 70
+    font_size = 90  # Increased font size for better visibility
     
     # If no font found, use the default
     if not font_path:
@@ -156,7 +154,7 @@ def create_text_clip(text, duration, start_time, video_size):
         method='caption',
         size=(video_size[0] * 0.8, None),  # Width is 80% of video width
         stroke_color='black',
-        stroke_width=2  # Add outline for better readability
+        stroke_width=3  # Increased stroke width for better visibility
     )
     
     # Set position and timing
@@ -294,31 +292,52 @@ def generate_video(scenario, scenario_path, vertical=True):
         print(f"❌ Error generating video: {str(e)}")
         return None
 
+def process_scenario(scenario_path, vertical=True):
+    """Process a scenario file and generate a video."""
+    try:
+        with open(scenario_path, 'r', encoding='utf-8') as file:
+            scenario = yaml.safe_load(file)
+        
+        print(f"📌 Topic: {scenario['topic']}")
+        
+        # Generate the video
+        output_path = generate_video(scenario, scenario_path, vertical)
+        
+        if output_path:
+            # Mark the scenario as processed
+            scenario['has_video'] = True
+            with open(scenario_path, 'w', encoding='utf-8') as file:
+                yaml.dump(scenario, file, default_flow_style=False)
+            print(f"✅ Scenario marked as processed: {scenario_path}")
+            print(f"🎉 Video generation complete: {output_path}")
+            return True
+        else:
+            print(f"❌ Failed to generate video for {scenario_path}")
+            return False
+    except Exception as e:
+        print(f"❌ Error processing scenario {scenario_path}: {str(e)}")
+        return False
+
 def parse_args():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description='Generate videos from scenarios.')
-    parser.add_argument('--horizontal', action='store_true', help='Generate horizontal (16:9) videos instead of vertical (9:16)')
+    parser = argparse.ArgumentParser(description='Generate videos from scenario files.')
+    parser.add_argument('-n', '--num-videos', type=int, default=1, 
+                        help='Number of videos to generate. Use -1 to process all available scenarios.')
+    parser.add_argument('--horizontal', action='store_true', 
+                        help='Generate horizontal (16:9) videos instead of vertical (9:16).')
     parser.add_argument('--scenario', type=str, help='Path to a specific scenario file to process')
     return parser.parse_args()
-
-def mark_scenario_processed(scenario_path):
-    """Mark a scenario as processed."""
-    with open(scenario_path, 'r', encoding='utf-8') as f:
-        scenario = yaml.safe_load(f)
-    
-    scenario['has_video'] = True
-    with open(scenario_path, 'w', encoding='utf-8') as file:
-        yaml.dump(scenario, file, default_flow_style=False)
 
 def main():
     """Main function."""
     args = parse_args()
     
+    # Create output directory if it doesn't exist
+    if not os.path.exists(OUTPUT_DIR):
+        os.makedirs(OUTPUT_DIR)
+    
     # Determine if we should generate horizontal videos (vertical is now default)
     vertical = not args.horizontal
-    
-    # Create output directory if it doesn't exist
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
     
     if args.scenario:
         # Process a specific scenario
@@ -327,34 +346,42 @@ def main():
             print(f"❌ Scenario file not found: {scenario_path}")
             return
         
-        # Load the scenario
-        with open(scenario_path, 'r', encoding='utf-8') as f:
-            scenario = yaml.safe_load(f)
+        # Process the scenario
+        success = process_scenario(scenario_path, vertical)
         
-        # Generate the video
-        generate_video(scenario, scenario_path, vertical=vertical)
+        if success:
+            print(f"🎉 Video generation complete: {scenario_path}")
     else:
-        # Find a random scenario that hasn't been processed yet
-        scenario_path = find_random_scenario()
-        if not scenario_path:
-            return
+        # Process the specified number of videos
+        videos_generated = 0
+        max_videos = args.num_videos
         
-        # Load the scenario
-        with open(scenario_path, 'r', encoding='utf-8') as f:
-            scenario = yaml.safe_load(f)
+        while True:
+            # Check if we've generated the requested number of videos
+            if max_videos > 0 and videos_generated >= max_videos:
+                break
+            
+            # Find a random scenario that hasn't been processed
+            scenario_path = find_random_scenario()
+            
+            # If no more scenarios to process, break
+            if not scenario_path:
+                print("🏁 No more unprocessed scenarios available.")
+                break
+            
+            print(f"🎯 Selected scenario: {os.path.basename(scenario_path)}")
+            
+            # Process the scenario
+            success = process_scenario(scenario_path, vertical)
+            
+            if success:
+                videos_generated += 1
+                print(f"📊 Progress: {videos_generated}/{max_videos if max_videos > 0 else 'all'} videos generated")
         
-        # Generate the video
-        generate_video(scenario, scenario_path, vertical=vertical)
-        
-        # Mark the scenario as processed
-        mark_scenario_processed(scenario_path)
-        
-        # Get the output filename
-        base_filename = os.path.basename(scenario_path)
-        output_filename = os.path.splitext(base_filename)[0] + ".mp4"
-        output_path = os.path.join(OUTPUT_DIR, output_filename)
-        
-        print(f"🎉 Video generation complete: {output_path}")
+        if videos_generated > 0:
+            print(f"✅ Successfully generated {videos_generated} videos.")
+        else:
+            print("❌ No videos were generated.")
 
 if __name__ == "__main__":
     main()
