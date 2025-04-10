@@ -89,8 +89,52 @@ def find_best_match(target, options):
     print(f"⚠️ No close match found for '{target}'. Using first available option.")
     return options[0]
 
+def format_text_for_display(text):
+    """Format text for better display by breaking at natural points.
+    
+    This function breaks long sentences into multiple lines at natural break points
+    like commas, colons, semicolons, and certain conjunctions to improve readability.
+    """
+    # Don't process if text is already short
+    if len(text) < 30:
+        return text
+    
+    # Break points in order of priority
+    break_points = [
+        ': ', '; ', 
+        ', ', 
+        ' - ', 
+        ' but ', ' and ', ' or ', 
+        ' because ', ' when ', ' if '
+    ]
+    
+    # Try to find a good break point
+    for separator in break_points:
+        if separator in text:
+            parts = text.split(separator, 1)  # Split only on the first occurrence
+            # For conjunctions, keep them with the second part
+            if separator.strip() in ['but', 'and', 'or', 'because', 'when', 'if']:
+                return parts[0] + '\n' + separator.strip() + parts[1]
+            else:
+                # For punctuation, keep it with the first part
+                return parts[0] + separator.rstrip() + '\n' + parts[1].lstrip()
+    
+    # If no good break point is found but text is still long, try to break at a space
+    # near the middle of the text
+    if len(text) > 40:
+        words = text.split()
+        if len(words) > 3:
+            middle_idx = len(words) // 2
+            return ' '.join(words[:middle_idx]) + '\n' + ' '.join(words[middle_idx:])
+    
+    # If all else fails, return the original text
+    return text
+
 def create_text_clip(text, duration, start_time, video_size):
     """Create a text clip with the given text and duration."""
+    # Format text for better display
+    formatted_text = format_text_for_display(text)
+    
     # Use a random font from the fonts directory
     font_path = get_random_font()
     font_size = 70
@@ -104,16 +148,18 @@ def create_text_clip(text, duration, start_time, video_size):
     
     # Create the text clip
     txt_clip = TextClip(
-        txt=text,
+        txt=formatted_text,
         fontsize=font_size,
         color='white',
         font=font_path,
         align='center',
         method='caption',
-        size=(video_size[0] * 0.8, None)  # Width is 80% of video width
+        size=(video_size[0] * 0.8, None),  # Width is 80% of video width
+        stroke_color='black',
+        stroke_width=2  # Add outline for better readability
     )
     
-    # Add a black outline/stroke to make text more readable
+    # Set position and timing
     txt_clip = txt_clip.set_position('center')
     txt_clip = txt_clip.set_start(start_time)
     txt_clip = txt_clip.set_duration(duration)
@@ -154,114 +200,96 @@ def generate_video(scenario, scenario_path, vertical=True):
         video_clip = VideoFileClip(video_path)
         audio_clip = AudioFileClip(music_path)
         
-        # Calculate total duration needed
+        # Calculate total duration of all slides
         total_duration = sum(slide['duration_seconds'] for slide in scenario['slides'])
         
-        # If video is shorter than needed, loop it
-        if video_clip.duration < total_duration:
-            video_clip = video_clip.loop(duration=total_duration)
-        else:
-            # Otherwise trim it to the needed duration
-            video_clip = video_clip.subclip(0, total_duration)
+        # Select random start point for video, ensuring it doesn't go past the end
+        max_video_start = max(0, video_clip.duration - total_duration)
+        video_start = random.uniform(0, max_video_start) if max_video_start > 0 else 0
         
-        # If audio is shorter than needed, loop it
-        if audio_clip.duration < total_duration:
-            audio_clip = audio_clip.loop(duration=total_duration)
-        else:
-            # Otherwise trim it to the needed duration
-            audio_clip = audio_clip.subclip(0, total_duration)
+        # Select random start point for audio, ensuring it doesn't go past the end
+        max_audio_start = max(0, audio_clip.duration - total_duration)
+        audio_start = random.uniform(0, max_audio_start) if max_audio_start > 0 else 0
         
-        # Add audio to video
+        print(f"🎬 Using video segment starting at {video_start:.2f}s")
+        print(f"🎵 Using audio segment starting at {audio_start:.2f}s")
+        
+        # Trim video and audio to the selected segments
+        video_clip = video_clip.subclip(video_start, video_start + total_duration)
+        audio_clip = audio_clip.subclip(audio_start, audio_start + total_duration)
+        
+        # Set the audio of the video clip
         video_clip = video_clip.set_audio(audio_clip)
         
-        # For vertical videos (9:16 aspect ratio for TikTok/Reels)
+        # Determine video dimensions based on orientation
         if vertical:
             print("🔄 Creating vertical (9:16) video for TikTok/Reels...")
-            
-            # Define target dimensions (9:16 aspect ratio)
-            target_width = 720
-            target_height = 1280
-            
-            # Create a black background clip with vertical dimensions
-            bg_clip = ColorClip(size=(target_width, target_height), color=(0, 0, 0))
-            bg_clip = bg_clip.set_duration(total_duration)
-            
-            # Resize the video to fit within the vertical frame
-            # We'll resize it to maintain aspect ratio but fit within the vertical frame
-            original_width, original_height = video_clip.size
-            
-            # Calculate new dimensions to maintain aspect ratio
-            if original_width / original_height > target_width / target_height:
-                # Video is wider than target ratio, resize based on height
-                new_height = target_height
-                new_width = int(original_width * (new_height / original_height))
-            else:
-                # Video is taller than target ratio, resize based on width
-                new_width = target_width
-                new_height = int(original_height * (new_width / original_width))
-            
-            # Resize the video
-            video_clip = video_clip.resize(height=new_height)
-            
-            # Center the video on the background
-            x_pos = (target_width - video_clip.size[0]) / 2
-            video_clip = video_clip.set_position((x_pos, 0))
-            
-            # Create text clips for each slide
-            text_clips = []
-            current_time = 0
-            
-            for slide in scenario['slides']:
-                duration = slide['duration_seconds']
-                text = slide['text']
-                
-                # Create text clips sized for vertical format
-                text_clip = create_text_clip(text, duration, current_time, (target_width, target_height))
-                text_clips.append(text_clip)
-                
-                current_time += duration
-            
-            # Combine background, video, and text overlays
-            final_clip = CompositeVideoClip([bg_clip, video_clip] + text_clips, size=(target_width, target_height))
+            # For vertical video (9:16 aspect ratio)
+            target_width = 1080
+            target_height = 1920
         else:
-            # Standard horizontal video
-            # Create text clips for each slide
-            text_clips = []
-            current_time = 0
-            
-            for slide in scenario['slides']:
-                duration = slide['duration_seconds']
-                text = slide['text']
-                
-                text_clip = create_text_clip(text, duration, current_time, video_clip.size)
-                text_clips.append(text_clip)
-                
-                current_time += duration
-            
-            # Combine video with text overlays
-            final_clip = CompositeVideoClip([video_clip] + text_clips)
+            # For horizontal video (16:9 aspect ratio)
+            target_width = 1920
+            target_height = 1080
         
-        # Write the result to a file
+        # Resize and crop video to target dimensions
+        # First resize to cover the target dimensions while maintaining aspect ratio
+        video_aspect = video_clip.w / video_clip.h
+        target_aspect = target_width / target_height
+        
+        if video_aspect > target_aspect:
+            # Video is wider than target, resize based on height
+            new_height = target_height
+            new_width = int(new_height * video_aspect)
+            resized_clip = video_clip.resize(height=new_height)
+            # Crop the width to match target width
+            x_center = resized_clip.w // 2
+            x1 = x_center - (target_width // 2)
+            cropped_clip = resized_clip.crop(x1=x1, y1=0, width=target_width, height=target_height)
+        else:
+            # Video is taller than target, resize based on width
+            new_width = target_width
+            new_height = int(new_width / video_aspect)
+            resized_clip = video_clip.resize(width=new_width)
+            # Crop the height to match target height
+            y_center = resized_clip.h // 2
+            y1 = y_center - (target_height // 2)
+            cropped_clip = resized_clip.crop(x1=0, y1=y1, width=target_width, height=target_height)
+        
+        # Create text clips for each slide
+        text_clips = []
+        current_time = 0
+        
+        for slide in scenario['slides']:
+            duration = slide['duration_seconds']
+            text = slide['text']
+            
+            # Create text clip
+            txt_clip = create_text_clip(text, duration, current_time, (target_width, target_height))
+            text_clips.append(txt_clip)
+            
+            # Update current time
+            current_time += duration
+        
+        # Combine video and text clips
+        final_clip = CompositeVideoClip([cropped_clip] + text_clips, size=(target_width, target_height))
+        
+        # Set the duration of the final clip
+        final_clip = final_clip.set_duration(total_duration)
+        
+        # Write the output file
         print(f"🔄 Rendering video to {output_path}...")
-        final_clip.write_videofile(
-            output_path,
-            fps=24,
-            codec='libx264',
-            audio_codec='aac',
-            threads=4,
-            preset='medium'
-        )
-        
-        # Mark the scenario as processed
-        scenario['has_video'] = True
-        with open(scenario_path, 'w', encoding='utf-8') as file:
-            yaml.dump(scenario, file, default_flow_style=False)
+        final_clip.write_videofile(output_path, codec='libx264', audio_codec='aac', fps=30)
         
         print(f"✅ Video created successfully: {output_path}")
-        print(f"✅ Scenario marked as processed: {scenario_path}")
+        
+        # Clean up
+        video_clip.close()
+        audio_clip.close()
+        final_clip.close()
         
         return output_path
-        
+    
     except Exception as e:
         print(f"❌ Error generating video: {str(e)}")
         return None
