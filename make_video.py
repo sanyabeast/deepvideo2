@@ -22,14 +22,29 @@ except (ImportError, AttributeError):
 # ─────────────────────────────────────────────────────
 # 📂 DIRECTORIES
 # ─────────────────────────────────────────────────────
-SCENARIOS_DIR = "scenarios"
-OUTPUT_DIR = "output"
-MUSIC_DIR = os.path.join("lib", "music")
-VIDEOS_DIR = os.path.join("lib", "videos")
-FONTS_DIR = os.path.join("lib", "fonts")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCENARIOS_DIR = os.path.join(SCRIPT_DIR, 'scenarios')
+VIDEOS_DIR = os.path.join(SCRIPT_DIR, 'lib', 'videos')
+MUSIC_DIR = os.path.join(SCRIPT_DIR, 'lib', 'music')
+FONTS_DIR = os.path.join(SCRIPT_DIR, 'lib', 'fonts')
+OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'output')
 
-# Ensure output directory exists
+# Create output directory if it doesn't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+def get_random_font():
+    """Get a random font from the fonts directory."""
+    if not os.path.exists(FONTS_DIR):
+        print(f"⚠️ Fonts directory not found: {FONTS_DIR}")
+        return None
+    
+    font_files = [f for f in os.listdir(FONTS_DIR) if f.lower().endswith(('.ttf', '.otf'))]
+    if not font_files:
+        print("⚠️ No font files found in the fonts directory.")
+        return None
+    
+    random_font = random.choice(font_files)
+    return os.path.join(FONTS_DIR, random_font)
 
 def find_random_scenario():
     """Find a random scenario that hasn't been processed yet."""
@@ -76,26 +91,32 @@ def find_best_match(target, options):
 
 def create_text_clip(text, duration, start_time, video_size):
     """Create a text clip with the given text and duration."""
-    # Use a font from the fonts directory
-    font_path = os.path.join(FONTS_DIR, "OpenSans-Bold.ttf")
+    # Use a random font from the fonts directory
+    font_path = get_random_font()
+    font_size = 70
     
-    # Calculate width as an integer (80% of video width)
-    width = int(video_size[0] * 0.8)
+    # If no font found, use the default
+    if not font_path:
+        print("⚠️ Using default font.")
+        font_path = None
+    else:
+        print(f"🔤 Using font: {os.path.basename(font_path)}")
     
-    # Create text clip with improved parameters for better visibility
-    # Using MoviePy 1.0.3 syntax
+    # Create the text clip
     txt_clip = TextClip(
-        txt=text,  # In 1.0.3, the parameter is 'txt' not 'text'
-        font=font_path,
+        txt=text,
+        fontsize=font_size,
         color='white',
-        size=(width, None),  # 80% of video width
-        fontsize=70,         # Larger font size for better visibility
-        stroke_color='black',
-        stroke_width=2       # Add outline for better readability
+        font=font_path,
+        align='center',
+        method='caption',
+        size=(video_size[0] * 0.8, None)  # Width is 80% of video width
     )
     
-    # Set position to center of screen
-    txt_clip = txt_clip.set_position('center').set_duration(duration).set_start(start_time)
+    # Add a black outline/stroke to make text more readable
+    txt_clip = txt_clip.set_position('center')
+    txt_clip = txt_clip.set_start(start_time)
+    txt_clip = txt_clip.set_duration(duration)
     
     return txt_clip
 
