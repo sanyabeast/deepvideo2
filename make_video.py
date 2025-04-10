@@ -32,27 +32,29 @@ FONTS_DIR = os.path.join("lib", "fonts")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def find_random_scenario():
-    """Find a random scenario that doesn't have a video yet."""
+    """Find a random scenario that hasn't been processed yet."""
+    # Get all scenario files
     scenario_files = [f for f in os.listdir(SCENARIOS_DIR) if f.endswith('.yaml')]
     
     if not scenario_files:
-        print("❌ No scenario files found in the scenarios directory.")
+        print("❌ No scenario files found.")
         return None
     
-    # Shuffle the list to get a random order
+    # Shuffle the files to get a random order
     random.shuffle(scenario_files)
     
-    # Find the first scenario that doesn't have a video
+    # Find the first scenario that hasn't been processed
     for filename in scenario_files:
-        filepath = os.path.join(SCENARIOS_DIR, filename)
-        with open(filepath, 'r', encoding='utf-8') as file:
-            scenario = yaml.safe_load(file)
-            
-            # Check if the scenario already has a video
-            if not scenario.get('has_video', False):
-                print(f"🎯 Selected scenario: {filename}")
-                print(f"📌 Topic: {scenario['topic']}")
-                return filepath, scenario
+        scenario_path = os.path.join(SCENARIOS_DIR, filename)
+        
+        with open(scenario_path, 'r', encoding='utf-8') as f:
+            scenario = yaml.safe_load(f)
+        
+        # Check if the scenario has already been processed
+        if not scenario.get('has_video', False):
+            print(f"🎯 Selected scenario: {filename}")
+            print(f"📌 Topic: {scenario['topic']}")
+            return scenario_path
     
     print("❌ All scenarios already have videos.")
     return None
@@ -97,7 +99,7 @@ def create_text_clip(text, duration, start_time, video_size):
     
     return txt_clip
 
-def generate_video(scenario, scenario_path, vertical=False):
+def generate_video(scenario, scenario_path, vertical=True):
     """Generate a video from a scenario.
     
     Args:
@@ -243,40 +245,67 @@ def generate_video(scenario, scenario_path, vertical=False):
         print(f"❌ Error generating video: {str(e)}")
         return None
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Generate videos from scenarios.')
+    parser.add_argument('--horizontal', action='store_true', help='Generate horizontal (16:9) videos instead of vertical (9:16)')
+    parser.add_argument('--scenario', type=str, help='Path to a specific scenario file to process')
+    return parser.parse_args()
+
+def mark_scenario_processed(scenario_path):
+    """Mark a scenario as processed."""
+    with open(scenario_path, 'r', encoding='utf-8') as f:
+        scenario = yaml.safe_load(f)
+    
+    scenario['has_video'] = True
+    with open(scenario_path, 'w', encoding='utf-8') as file:
+        yaml.dump(scenario, file, default_flow_style=False)
+
 def main():
     """Main function."""
-    parser = argparse.ArgumentParser(description='Generate videos from scenario files')
-    parser.add_argument('-f', '--file', help='Specific scenario file to process (optional)')
-    parser.add_argument('-v', '--vertical', action='store_true', help='Generate vertical video (9:16 aspect ratio)')
-    args = parser.parse_args()
+    args = parse_args()
     
-    if args.file:
-        # Process a specific file
-        scenario_path = args.file
+    # Determine if we should generate horizontal videos (vertical is now default)
+    vertical = not args.horizontal
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    
+    if args.scenario:
+        # Process a specific scenario
+        scenario_path = args.scenario
         if not os.path.exists(scenario_path):
-            scenario_path = os.path.join(SCENARIOS_DIR, args.file)
-            
-        if not os.path.exists(scenario_path):
-            print(f"❌ File not found: {args.file}")
+            print(f"❌ Scenario file not found: {scenario_path}")
             return
-            
-        with open(scenario_path, 'r', encoding='utf-8') as file:
-            scenario = yaml.safe_load(file)
-            
-        if scenario.get('has_video', False):
-            print(f"⚠️ This scenario already has a video. Regenerating...")
-            
-        output_path = generate_video(scenario, scenario_path, vertical=args.vertical)
-        if output_path:
-            print(f"🎉 Video generation complete: {output_path}")
+        
+        # Load the scenario
+        with open(scenario_path, 'r', encoding='utf-8') as f:
+            scenario = yaml.safe_load(f)
+        
+        # Generate the video
+        generate_video(scenario, scenario_path, vertical=vertical)
     else:
-        # Find a random scenario that doesn't have a video
-        result = find_random_scenario()
-        if result:
-            scenario_path, scenario = result
-            output_path = generate_video(scenario, scenario_path, vertical=args.vertical)
-            if output_path:
-                print(f"🎉 Video generation complete: {output_path}")
+        # Find a random scenario that hasn't been processed yet
+        scenario_path = find_random_scenario()
+        if not scenario_path:
+            return
+        
+        # Load the scenario
+        with open(scenario_path, 'r', encoding='utf-8') as f:
+            scenario = yaml.safe_load(f)
+        
+        # Generate the video
+        generate_video(scenario, scenario_path, vertical=vertical)
+        
+        # Mark the scenario as processed
+        mark_scenario_processed(scenario_path)
+        
+        # Get the output filename
+        base_filename = os.path.basename(scenario_path)
+        output_filename = os.path.splitext(base_filename)[0] + ".mp4"
+        output_path = os.path.join(OUTPUT_DIR, output_filename)
+        
+        print(f"🎉 Video generation complete: {output_path}")
 
 if __name__ == "__main__":
     main()
