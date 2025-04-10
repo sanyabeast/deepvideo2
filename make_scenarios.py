@@ -35,6 +35,27 @@ def to_snake_case(text: str) -> str:
     text = re.sub(r'[^\w\s]', '', text).lower()
     return re.sub(r'\s+', '_', text)
 
+def get_existing_topics():
+    """Get a list of existing topics from scenario files."""
+    scenarios_dir = "scenarios"
+    existing_topics = []
+    
+    if not os.path.exists(scenarios_dir):
+        return existing_topics
+    
+    for filename in os.listdir(scenarios_dir):
+        if filename.endswith('.yaml'):
+            filepath = os.path.join(scenarios_dir, filename)
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    scenario = yaml.safe_load(f)
+                    if scenario and 'topic' in scenario:
+                        existing_topics.append(scenario['topic'])
+            except Exception as e:
+                print(f"⚠️ Error reading {filename}: {str(e)}")
+    
+    return existing_topics
+
 def get_available_music(limit=6):
     music_dir = os.path.join("lib", "music")
     all_music = [f for f in os.listdir(music_dir) if os.path.isfile(os.path.join(music_dir, f))]
@@ -62,11 +83,15 @@ def print_subheader(title: str):
 # ─────────────────────────────────────────────────────
 # 🧠 LLM PROMPTS
 # ─────────────────────────────────────────────────────
-def get_topics(model) -> TopicsList:
+def get_topics(model, existing_topics=None) -> TopicsList:
     print_header(f"Generating fresh motivational topics (seed: {seed})")
-
+    
+    if existing_topics and len(existing_topics) > 0:
+        print_subheader(f"🔍 Avoiding {len(existing_topics)} existing topics")
+    
     chat = lms.Chat()
-    chat.add_user_message("""
+    
+    prompt = """
 You are a creative and insightful motivational content strategist for short-form video platforms (TikTok, Reels, YouTube Shorts).
 
 Generate a list of 5 **fresh and unconventional motivational video topics**. Avoid cliché, overused ideas like "overcoming fear" or "imposter syndrome". Be unique, thought-provoking, and modern.
@@ -76,12 +101,37 @@ Each topic should:
 - Appeal to younger audiences (Gen Z, Millennials)
 - Spark curiosity or emotion
 - Be suitable for short, powerful videos
+"""
 
+    # Add existing topics to avoid if any
+    if existing_topics and len(existing_topics) > 0:
+        # Always randomize the list of topics to avoid prompt getting too large
+        # and to ensure we're not always showing the same examples
+        max_examples = 32  # Maximum number of examples to include in the prompt
+        
+        if len(existing_topics) > max_examples:
+            # If we have more than max_examples, randomly select max_examples
+            examples = random.sample(existing_topics, max_examples)
+            print_subheader(f"🔍 Showing {max_examples} random examples out of {len(existing_topics)} existing topics")
+        else:
+            # If we have fewer than max_examples, use all of them but in random order
+            examples = random.sample(existing_topics, len(existing_topics))
+        
+        prompt += f"""
+IMPORTANT: Avoid creating topics similar to these existing ones:
+{chr(10).join(['- ' + topic for topic in examples])}
+
+Make sure your topics are COMPLETELY DIFFERENT from the above.
+"""
+
+    prompt += """
 Output a JSON like:
 {
   "topics": ["...", "...", "...", "...", "..."]
 }
-""")
+"""
+
+    chat.add_user_message(prompt)
 
     prediction = model.respond(chat, response_format=TopicsList)
     topics = prediction.parsed["topics"]
@@ -194,6 +244,11 @@ def main():
     print(f"\n✨ Using model: {model_name}")
     print(f"🔑 Random seed: {seed}")
     
+    # Get existing topics to avoid duplicates
+    existing_topics = get_existing_topics()
+    if existing_topics:
+        print(f"📚 Found {len(existing_topics)} existing scenarios")
+    
     # Run the specified number of iterations
     for i in range(args.iterations):
         if args.iterations > 1:
@@ -207,7 +262,8 @@ def main():
                     "seed": seed,
                 })
         
-        topics = get_topics(model)
+        # Get topics, avoiding existing ones
+        topics = get_topics(model, existing_topics)
         selected_topic = random.choice(topics)
         
         print_subheader(f"🎯 Selected topic: {selected_topic}")
@@ -217,6 +273,9 @@ def main():
         snake_topic = to_snake_case(selected_topic)
         filename = f"{seed}_{snake_topic[:128]}.yaml"
         save_yaml(filename, scenario)
+        
+        # Add the new topic to existing topics to avoid duplicates in subsequent iterations
+        existing_topics.append(selected_topic)
     
     print("\n🎉 All done!")
 
