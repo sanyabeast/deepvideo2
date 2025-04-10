@@ -101,6 +101,9 @@ def format_text_for_display(text):
     break_points = [
         ': ', '; ', 
         ', ', 
+        '? ', 
+        '! ', 
+        '. ', 
         ' - ', 
         ' but ', ' and ', ' or ', 
         ' because ', ' when ', ' if '
