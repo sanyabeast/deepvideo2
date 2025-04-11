@@ -5,6 +5,7 @@ import yaml
 import os
 import re
 import argparse
+import sys
 
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -13,34 +14,34 @@ PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
 # 🎲 CONFIGURATION
 # ─────────────────────────────────────────────────────
 def load_config(config_path=None):
-    """Load configuration from config file."""
+    """Load configuration from YAML file."""
     if config_path is None:
-        # Default to config.yaml in project root for backward compatibility
-        config_path = os.path.join(PROJECT_DIR, "config.yaml")
+        print("❌ Error: No config file specified.")
+        print("💡 Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml")
+        sys.exit(1)
     
-    # Check if the path is relative
-    if not os.path.isabs(config_path):
-        config_path = os.path.join(PROJECT_DIR, config_path)
+    try:
+        print(f"DEBUG: Loading config from: {config_path}")
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
         
-    # Ensure the file exists
-    if not os.path.exists(config_path):
-        # Check if the user might have meant configs/ instead of config/
-        if 'config/' in config_path and not os.path.exists(config_path.replace('config/', 'configs/')):
-            raise FileNotFoundError(f"Config file not found: {config_path}\nDid you mean 'configs/' instead of 'config/'?")
+        # Extract project name from config filename if not specified
+        if 'project_name' not in config:
+            # Get the filename without extension
+            config_filename = os.path.basename(config_path)
+            config_name = os.path.splitext(config_filename)[0]
+            config['project_name'] = config_name
+            print(f"ℹ️ Using config filename '{config_name}' as project name")
         
-        # Check if any config files exist in the configs directory
-        configs_dir = os.path.join(PROJECT_DIR, 'configs')
-        if os.path.exists(configs_dir):
-            config_files = [f for f in os.listdir(configs_dir) if f.endswith('.yaml')]
-            if config_files:
-                available_configs = '\n  - '.join([''] + [f'configs/{f}' for f in config_files])
-                raise FileNotFoundError(f"Config file not found: {config_path}\nAvailable config files:{available_configs}")
-        
-        # Default error message
-        raise FileNotFoundError(f"Config file not found: {config_path}\nPlease check the path and try again.")
-        
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+        print(f"DEBUG: Final project_name in config: {config.get('project_name')}")
+        return config
+    except FileNotFoundError:
+        print(f"❌ Error: Config file not found: {config_path}")
+        print(f"💡 Hint: Make sure the config file exists. Example: configs/sample.yaml")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        print(f"❌ Error parsing config file: {e}")
+        sys.exit(1)
 
 # Global variables
 CONFIG = None
@@ -77,7 +78,7 @@ def get_existing_topics():
     existing_topics = []
     
     # Check if scenarios directory exists
-    scenarios_dir = os.path.join(PROJECT_DIR, "output", CONFIG.get("project_name", "DeepVideo2"), CONFIG["directories"]["scenarios"])
+    scenarios_dir = os.path.join(PROJECT_DIR, "output", CONFIG.get("project_name"), CONFIG["directories"]["scenarios"])
     if not os.path.exists(scenarios_dir):
         return existing_topics
     
@@ -123,7 +124,7 @@ def print_subheader(title: str):
 # 🧠 LLM PROMPTS
 # ─────────────────────────────────────────────────────
 def get_topics(model, existing_topics=None) -> TopicsList:
-    print_header(f"Generating fresh motivational topics (seed: {seed})")
+    print_header(f"Generating fresh topics (seed: {seed})")
     
     if existing_topics and len(existing_topics) > 0:
         print_subheader(f"🔍 Avoiding {len(existing_topics)} existing topics")
@@ -273,8 +274,8 @@ def get_scenario(model, topic):
 
 def save_yaml(filename, data):
     """Save data to a YAML file in the scenarios directory."""
-    # Create the project-specific output directory
-    project_name = CONFIG.get("project_name", "DeepVideo2")
+    # Get the project name from the config
+    project_name = CONFIG.get("project_name")
     scenarios_dir = os.path.join(PROJECT_DIR, "output", project_name, CONFIG["directories"]["scenarios"])
     os.makedirs(scenarios_dir, exist_ok=True)
     
@@ -292,7 +293,7 @@ def save_yaml(filename, data):
 def main():
     global seed, CONFIG, default_model_name, emotions
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Generate motivational video scenarios')
+    parser = argparse.ArgumentParser(description='Generate video scenarios')
     parser.add_argument('-c', '--config', type=str, required=True,
                         help='Path to the configuration file')
     parser.add_argument('-n', '--iterations', type=int, default=1, 
@@ -301,8 +302,16 @@ def main():
                         help='Model name to use')
     args = parser.parse_args()
     
-    # Load configuration from specified file
+    # Load configuration
     CONFIG = load_config(args.config)
+    
+    # Get project name from config
+    project_name = CONFIG.get("project_name")
+    print(f"DEBUG: Config file: {args.config}")
+    print(f"DEBUG: Project name from config: {project_name}")
+    
+    # Print startup message
+    print(f"\n🚀 Starting {project_name} scenario generation")
     
     # Set seed if not specified in config
     seed = CONFIG.get("llm", {}).get("seed", random.randint(0, 1000000))
@@ -318,10 +327,6 @@ def main():
     # If model not specified in command line, use the default from config
     if args.model is None:
         args.model = default_model_name
-    
-    # Get project name
-    project_name = CONFIG.get("project_name", "DeepVideo2")
-    print(f"\n🚀 Starting {project_name} scenario generation")
     
     # Initialize the model with the specified model name
     model_name = args.model

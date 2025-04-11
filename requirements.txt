@@ -1,0 +1,11 @@
+# DeepVideo2 Dependencies
+pydantic>=2.0.0
+PyYAML>=6.0
+requests>=2.28.0
+numpy>=1.24.0
+librosa>=0.10.0
+soundfile>=0.12.0
+moviepy>=1.0.3
+Pillow>=10.0.0
+emoji>=2.8.0
+lmstudio-client>=0.3.0

@@ -5,6 +5,7 @@ import re
 import shutil
 import argparse
 import random
+import sys
 from pathlib import Path
 import numpy as np
 import librosa
@@ -17,34 +18,32 @@ PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
 # 🎲 CONFIGURATION
 # ─────────────────────────────────────────────────────
 def load_config(config_path=None):
-    """Load configuration from config file."""
+    """Load configuration from YAML file."""
     if config_path is None:
-        # Default to config.yaml in project root for backward compatibility
-        config_path = os.path.join(PROJECT_DIR, "config.yaml")
+        print("❌ Error: No config file specified.")
+        print("💡 Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml")
+        sys.exit(1)
     
-    # Check if the path is relative
-    if not os.path.isabs(config_path):
-        config_path = os.path.join(PROJECT_DIR, config_path)
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
         
-    # Ensure the file exists
-    if not os.path.exists(config_path):
-        # Check if the user might have meant configs/ instead of config/
-        if 'config/' in config_path and not os.path.exists(config_path.replace('config/', 'configs/')):
-            raise FileNotFoundError(f"Config file not found: {config_path}\nDid you mean 'configs/' instead of 'config/'?")
+        # Extract project name from config filename if not specified
+        if 'project_name' not in config:
+            # Get the filename without extension
+            config_filename = os.path.basename(config_path)
+            config_name = os.path.splitext(config_filename)[0]
+            config['project_name'] = config_name
+            print(f"ℹ️ Using config filename '{config_name}' as project name")
         
-        # Check if any config files exist in the configs directory
-        configs_dir = os.path.join(PROJECT_DIR, 'configs')
-        if os.path.exists(configs_dir):
-            config_files = [f for f in os.listdir(configs_dir) if f.endswith('.yaml')]
-            if config_files:
-                available_configs = '\n  - '.join([''] + [f'configs/{f}' for f in config_files])
-                raise FileNotFoundError(f"Config file not found: {config_path}\nAvailable config files:{available_configs}")
-        
-        # Default error message
-        raise FileNotFoundError(f"Config file not found: {config_path}\nPlease check the path and try again.")
-        
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+        return config
+    except FileNotFoundError:
+        print(f"❌ Error: Config file not found: {config_path}")
+        print(f"💡 Hint: Make sure the config file exists. Example: configs/sample.yaml")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        print(f"❌ Error parsing config file: {e}")
+        sys.exit(1)
 
 # Global variables
 CONFIG = None
@@ -281,7 +280,9 @@ def main():
     OUTPUT_DIR = CONFIG["directories"]["voice_lines"]
     
     # Get project name
-    project_name = CONFIG.get("project_name", "DeepVideo2")
+    project_name = CONFIG.get("project_name")
+    
+    # Print startup message
     print(f"\n🚀 Starting {project_name} voice line generation...")
     
     # Clean output directory if requested

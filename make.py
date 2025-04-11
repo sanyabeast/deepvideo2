@@ -30,10 +30,20 @@ def load_config(config_path):
     """Load configuration from YAML file."""
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+        
+        # Extract project name from config filename if not specified
+        if 'project_name' not in config:
+            # Get the filename without extension
+            config_filename = os.path.basename(config_path)
+            config_name = os.path.splitext(config_filename)[0]
+            config['project_name'] = config_name
+            print(f"ℹ️ Using config filename '{config_name}' as project name")
+        
+        return config
     except FileNotFoundError:
         print(f"❌ Error: Config file not found: {config_path}")
-        print(f"💡 Hint: Make sure the config file exists. Example: configs/motivation.yaml")
+        print(f"💡 Hint: Make sure the config file exists. Example: configs/sample.yaml")
         sys.exit(1)
     except yaml.YAMLError as e:
         print(f"❌ Error parsing config file: {e}")
@@ -80,7 +90,7 @@ def main():
     # Validate config file
     if not os.path.exists(args.config):
         print(f"❌ Error: Config file not found: {args.config}")
-        print(f"💡 Hint: Make sure the config file exists. Example: configs/motivation.yaml")
+        print(f"💡 Hint: Make sure the config file exists. Example: configs/sample.yaml")
         return 1
     
     # Validate quality

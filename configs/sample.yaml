@@ -3,9 +3,9 @@
 # ─────────────────────────────────────────────────────
 # This is a sample configuration file for DeepVideo2.
 # Copy this file and modify it for your own projects.
-
-# Project Information
-project_name: "sample"
+# 
+# NOTE: The filename (without extension) will be used as the project name.
+# For example, if you name this file "motivation.yaml", the project name will be "motivation".
 
 # LLM Configuration
 llm:

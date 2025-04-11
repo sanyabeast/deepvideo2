@@ -21,34 +21,32 @@ PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
 # 🎲 CONFIGURATION
 # ─────────────────────────────────────────────────────
 def load_config(config_path=None):
-    """Load configuration from config file."""
+    """Load configuration from YAML file."""
     if config_path is None:
-        # Default to config.yaml in project root for backward compatibility
-        config_path = os.path.join(PROJECT_DIR, "config.yaml")
+        print("❌ Error: No config file specified.")
+        print("💡 Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml")
+        sys.exit(1)
     
-    # Check if the path is relative
-    if not os.path.isabs(config_path):
-        config_path = os.path.join(PROJECT_DIR, config_path)
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
         
-    # Ensure the file exists
-    if not os.path.exists(config_path):
-        # Check if the user might have meant configs/ instead of config/
-        if 'config/' in config_path and not os.path.exists(config_path.replace('config/', 'configs/')):
-            raise FileNotFoundError(f"Config file not found: {config_path}\nDid you mean 'configs/' instead of 'config/'?")
+        # Extract project name from config filename if not specified
+        if 'project_name' not in config:
+            # Get the filename without extension
+            config_filename = os.path.basename(config_path)
+            config_name = os.path.splitext(config_filename)[0]
+            config['project_name'] = config_name
+            print(f"ℹ️ Using config filename '{config_name}' as project name")
         
-        # Check if any config files exist in the configs directory
-        configs_dir = os.path.join(PROJECT_DIR, 'configs')
-        if os.path.exists(configs_dir):
-            config_files = [f for f in os.listdir(configs_dir) if f.endswith('.yaml')]
-            if config_files:
-                available_configs = '\n  - '.join([''] + [f'configs/{f}' for f in config_files])
-                raise FileNotFoundError(f"Config file not found: {config_path}\nAvailable config files:{available_configs}")
-        
-        # Default error message
-        raise FileNotFoundError(f"Config file not found: {config_path}\nPlease check the path and try again.")
-        
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+        return config
+    except FileNotFoundError:
+        print(f"❌ Error: Config file not found: {config_path}")
+        print(f"💡 Hint: Make sure the config file exists. Example: configs/sample.yaml")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        print(f"❌ Error parsing config file: {e}")
+        sys.exit(1)
 
 # Global variables
 CONFIG = None
@@ -544,7 +542,8 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
             slide_duration = slide['duration_seconds']
             print(f"📝 No voice line for slide {i+1}, using original duration: {slide_duration}s")
         
-        # Update total video duration
+        # Create text clips for this slide using the consistent font if enabled
+        text_clips = create_text_clip(slide['text'], slide_duration, video_duration, target_resolution, quality, scenario_font)
         video_duration += slide_duration
     
     # Select a random segment from the video if it's longer than needed
@@ -584,9 +583,6 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     # Add text clips and voice lines for each slide
     current_time = 0
     for i, slide in enumerate(slides):
-        # Get slide text
-        slide_text = slide['text']
-        
         # Check if voice line exists for this slide
         slide_id = f"slide_{i+1:02d}"
         voice_line_filename = f"{scenario_name}_{slide_id}.wav"
@@ -598,19 +594,10 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
                 voice_clip = AudioFileClip(voice_line_path)
                 # Add a small buffer (0.5s) to ensure text stays visible after narration
                 slide_duration = voice_clip.duration + 0.5
-                
-                # Set the start time for this voice clip
-                voice_clip = voice_clip.set_start(current_time)
-                
-                # Adjust voice volume
-                if voice_narration_volume != 1.0:
-                    voice_clip = voice_clip.volumex(voice_narration_volume)
-                
-                # Add to audio clips
-                audio_clips.append(voice_clip)
-                print(f"🔊 Added voice narration for slide {i+1}")
+                voice_clip.close()
+                print(f"🔊 Found voice line for slide {i+1}: {slide_duration:.2f}s")
             except Exception as e:
-                print(f"⚠️ Error adding voice line {voice_line_filename}: {str(e)}")
+                print(f"⚠️ Error reading voice line {voice_line_filename}: {str(e)}")
                 slide_duration = slide['duration_seconds']
         else:
             # Use original duration from scenario
@@ -618,7 +605,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
             print(f"📝 No voice line for slide {i+1}, using original duration: {slide_duration}s")
         
         # Create text clips for this slide using the consistent font if enabled
-        text_clips = create_text_clip(slide_text, slide_duration, current_time, target_resolution, quality, scenario_font)
+        text_clips = create_text_clip(slide['text'], slide_duration, current_time, target_resolution, quality, scenario_font)
         all_clips.extend(text_clips)
         
         # Update current time
@@ -738,7 +725,8 @@ def main():
     update_directories()
     
     # Get project name
-    project_name = CONFIG.get("project_name", "DeepVideo2")
+    project_name = CONFIG.get("project_name")
+    
     print(f"\n🚀 Starting {project_name} video generation")
     
     # Create output directory if it doesn't exist
