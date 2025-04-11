@@ -331,7 +331,7 @@ def create_text_clip(text, duration, start_time, video_size):
     # If no emojis or no emoji font, just return the main text clip
     return [main_txt_clip]
 
-def generate_video(scenario, scenario_path, vertical=True):
+def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     """Generate a video from a scenario."""
     print(f"📌 Topic: {scenario['topic']}")
     
@@ -361,6 +361,13 @@ def generate_video(scenario, scenario_path, vertical=True):
     else:
         print("🔄 Creating horizontal (16:9) video...")
         target_resolution = (1920, 1080)  # 16:9 aspect ratio
+    
+    # Apply quality scaling if less than 1.0
+    if quality < 1.0:
+        print(f"🔍 Rendering at {int(quality * 100)}% quality for faster processing")
+        # Scale the target resolution
+        target_resolution = (int(target_resolution[0] * quality), int(target_resolution[1] * quality))
+        print(f"🔍 Scaled resolution: {target_resolution[0]}x{target_resolution[1]}")
     
     # Resize video to target resolution
     video_clip = resize_video(video_clip, target_resolution)
@@ -436,13 +443,14 @@ def generate_video(scenario, scenario_path, vertical=True):
     
     return output_path
 
-def process_scenario(scenario_path, vertical=True, force=False):
+def process_scenario(scenario_path, vertical=True, force=False, quality=1.0):
     """Process a scenario file and generate a video.
     
     Args:
         scenario_path: Path to the scenario file
         vertical: Whether to generate a vertical video (9:16 aspect ratio)
         force: Whether to process the scenario even if it has already been processed
+        quality: Quality factor for rendering (1.0 = full quality, 0.5 = half resolution)
     """
     try:
         with open(scenario_path, 'r', encoding='utf-8') as file:
@@ -457,7 +465,7 @@ def process_scenario(scenario_path, vertical=True, force=False):
             return False
         
         # Generate the video
-        output_path = generate_video(scenario, scenario_path, vertical)
+        output_path = generate_video(scenario, scenario_path, vertical, quality)
         
         if output_path:
             # Mark the scenario as processed
@@ -481,9 +489,11 @@ def parse_args():
                         help='Number of videos to generate. Use -1 to process all available scenarios.')
     parser.add_argument('--horizontal', action='store_true', 
                         help='Generate horizontal (16:9) videos instead of vertical (9:16).')
-    parser.add_argument('--scenario', type=str, help='Path to a specific scenario file to process')
+    parser.add_argument('-s', '--scenario', type=str, help='Path to a specific scenario file to process')
     parser.add_argument('--force', action='store_true',
                         help='Force processing of a scenario even if it has already been processed')
+    parser.add_argument('-q', '--quality', type=float, default=1.0,
+                        help='Quality factor for rendering (1.0 = full quality, 0.5 = half resolution)')
     return parser.parse_args()
 
 def main():
@@ -505,7 +515,7 @@ def main():
             return
         
         # Process the scenario, with force flag if specified
-        success = process_scenario(scenario_path, vertical, args.force)
+        success = process_scenario(scenario_path, vertical, args.force, args.quality)
         
         if success:
             print(f"🎉 Video generation complete: {scenario_path}")
@@ -530,7 +540,7 @@ def main():
             print(f"🎯 Selected scenario: {os.path.basename(scenario_path)}")
             
             # Process the scenario
-            success = process_scenario(scenario_path, vertical)
+            success = process_scenario(scenario_path, vertical, quality=args.quality)
             
             if success:
                 videos_generated += 1
