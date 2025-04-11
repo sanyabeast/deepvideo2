@@ -520,6 +520,15 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     
     # Calculate total video duration with adjusted slide durations
     video_duration = 0
+    
+    # Get intro and outro delays from config (default to 1.0 second each if not specified)
+    intro_delay = CONFIG["video"].get("intro_delay", 1.0)
+    outro_delay = CONFIG["video"].get("outro_delay", 1.0)
+    
+    # Add intro delay to total duration
+    video_duration += intro_delay
+    print(f"⏱️ Adding intro delay: {intro_delay:.1f}s")
+    
     for i, slide in enumerate(slides):
         # Check if voice line exists for this slide
         slide_id = f"slide_{i+1:02d}"
@@ -533,9 +542,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
                 # Set volume for voice clip
                 voice_clip = voice_clip.volumex(CONFIG["video"].get("voice_narration_volume", 1.0))
                 # Set the start time for this voice clip
-                voice_clip = voice_clip.set_start(video_duration)
-                # Add voice clip to audio clips list
-                audio_clips = [music_clip, voice_clip]
+                voice_clip = voice_clip.set_start(current_time)
                 # Add a small buffer (0.5s) to ensure text stays visible after narration
                 slide_duration = voice_clip.duration + 0.5
                 print(f"🔊 Found voice line for slide {i+1}: {slide_duration:.2f}s")
@@ -547,9 +554,12 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
             slide_duration = slide['duration_seconds']
             print(f"📝 No voice line for slide {i+1}, using original duration: {slide_duration}s")
         
-        # Create text clips for this slide using the consistent font if enabled
-        text_clips = create_text_clip(slide['text'], slide_duration, video_duration, target_resolution, quality, scenario_font)
+        # Add slide duration to total video duration
         video_duration += slide_duration
+    
+    # Add outro delay to total duration
+    video_duration += outro_delay
+    print(f"⏱️ Adding outro delay: {outro_delay:.1f}s")
     
     # Select a random segment from the video if it's longer than needed
     if video_clip.duration > video_duration:
@@ -585,7 +595,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     audio_clips = [music_clip]
     
     # Add text clips and voice lines for each slide
-    current_time = 0
+    current_time = intro_delay  # Start after intro delay
     for i, slide in enumerate(slides):
         # Check if voice line exists for this slide
         slide_id = f"slide_{i+1:02d}"

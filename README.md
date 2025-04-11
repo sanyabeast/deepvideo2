@@ -21,6 +21,7 @@ DeepVideo2 is a Python-based video generation system that transforms YAML scenar
 - **Voice Line Generation**: Create voice narration for each slide with emotion control
 - **Flexible Configuration**: Use project-specific configuration files in the configs/ directory
 - **Automatic Video Naming**: Generate descriptive filenames for background videos based on visual content
+- **Configurable Timing**: Set custom intro and outro delays for professional-looking videos
 
 ## Installation
 
@@ -105,6 +106,9 @@ video:
   imagemagick_binary: "path/to/magick.exe"
   background_music_volume: 0.2  # Volume multiplier for background music
   voice_narration_volume: 1.0   # Volume multiplier for voice narration
+  use_consistent_font: true     # Use the same font for all slides in a scenario
+  intro_delay: 1.0              # Delay in seconds before the first slide appears
+  outro_delay: 1.0              # Delay in seconds after the last slide before the video ends
 
 # Media Options
 media_options:

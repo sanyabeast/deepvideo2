@@ -29,6 +29,8 @@ video:
   background_music_volume: 0.2  # Volume multiplier for background music (0.0 to 1.0)
   voice_narration_volume: 1.0   # Volume multiplier for voice narration (0.0 to 1.0)
   use_consistent_font: true     # Use the same font for all slides in a scenario
+  intro_delay: 1.0              # Delay in seconds before the first slide appears
+  outro_delay: 1.0              # Delay in seconds after the last slide before the video ends
 
 # Media Options
 media_options:
