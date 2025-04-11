@@ -35,6 +35,8 @@ lib/
 scenarios/
 output/
 generated/
+configs/*
+!configs/sample.yaml
 
 # OS specific
 .DS_Store

@@ -130,20 +130,23 @@ def get_topics(model, existing_topics=None) -> TopicsList:
     
     chat = lms.Chat()
     
-    prompt = """
-You are a creative and insightful motivational content strategist for short-form video platforms (TikTok, Reels, YouTube Shorts).
+    # Get prompt components from config
+    role = CONFIG["prompts"]["topics"]["role"]
+    instruction = CONFIG["prompts"]["topics"]["instruction"]
+    requirements = CONFIG["prompts"]["topics"]["requirements"]
+    
+    # Build the prompt
+    prompt = f"""
+{role}
 
-Generate a list of 5 **fresh and unconventional motivational video topics**. Avoid cliché, overused ideas like "overcoming fear" or "imposter syndrome". Be unique, thought-provoking, and modern.
+{instruction}
 
 Each topic should:
-- Be specific and catchy
-- Appeal to younger audiences (Gen Z, Millennials)
-- Spark curiosity or emotion
-- Be suitable for short, powerful videos
-- Use only plain ENGLISH words and phrases.
-- Do NOT include emojis, icons, or non-standard symbols.
-- Do NOT use non-English languages or phrases.
 """
+    
+    # Add requirements from config
+    for req in requirements:
+        prompt += f"- {req}\n"
 
     # Add existing topics to avoid if any
     if existing_topics and len(existing_topics) > 0:
@@ -199,31 +202,39 @@ def get_scenario(model, topic):
     for i, video in enumerate(available_videos, 1):
         print(f"  {i}. {video}")
 
+    # Get prompt components from config
+    role = CONFIG["prompts"]["scenario"]["role"]
+    instruction = CONFIG["prompts"]["scenario"]["instruction"].format(topic=topic)
+    constraints = CONFIG["prompts"]["scenario"]["constraints"]
+    style = CONFIG["prompts"]["scenario"]["style"]
+    
     chat = lms.Chat()
-    chat.add_user_message(f"""
-You are a short-form video copywriter crafting motivational videos for TikTok, Reels, and YouTube Shorts.
+    
+    # Build the prompt
+    prompt = f"""
+{role}
 
 🎯 Your task:
-Create a **micro-story split into short slides** (like Instagram story frames) for the topic: "{topic}"
+{instruction}
 
 📏 Constraints:
-- Total video duration: **8-16 seconds max**
-- Each slide: **very short sentence or phrase**, 3–8 words
-- Each slide duration: **1 to 4 seconds** (max)
-- Max 8 slides
-- Each slide MUST be assigned ONE of these specific emotions: {", ".join(emotions)}
-
-📢 Style:
-- Ultra-punchy and emotionally charged
-- Hooks the viewer in slide 1
-- Builds emotional or motivational momentum
-- Uses rhythm, repetition, shock, or questions
-- Ends strong with a bold punchline or insight
-- Use everyday, casual Gen Z language
-- Use only plain ENGLISH for all text.
-- Do NOT include emojis, emoticons, icons, or non-standard symbols.
-- Do NOT include non-English words, slang from other languages, or cultural references that may require translation.
-
+"""
+    
+    # Add constraints from config
+    for constraint in constraints:
+        prompt += f"- {constraint}\n"
+    
+    # Add the emotion constraint which is specific to the code
+    prompt += f"- Each slide MUST be assigned ONE of these specific emotions: {', '.join(emotions)}\n"
+    
+    prompt += "\n📢 Style:\n"
+    
+    # Add style guidelines from config
+    for style_point in style:
+        prompt += f"- {style_point}\n"
+    
+    # Add available media options (this is service-specific and stays in the code)
+    prompt += f"""
 🎵 Available music files (select one that fits the mood):
 {", ".join(available_music)}
 
@@ -241,7 +252,9 @@ Create a **micro-story split into short slides** (like Instagram story frames) f
   "music": "Selected music filename from the list",
   "video": "Selected video filename from the list"
 }}
-""")
+"""
+
+    chat.add_user_message(prompt)
 
     prediction = model.respond(chat, response_format=ScenarioDescription)
     scenario = prediction.parsed
