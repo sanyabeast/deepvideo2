@@ -82,6 +82,7 @@ def generate_voice_line(text, output_path, emotion):
     }
     
     try:
+        print(f"  🔄 Sending request to TTS server...")
         response = requests.get(ZONOS_TTS_SERVER, params=params)
         if response.status_code == 200:
             return True
