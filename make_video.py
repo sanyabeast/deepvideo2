@@ -75,7 +75,12 @@ def get_random_font():
     if not font_files:
         return None
     
-    # Since there's only one font, just return it directly
+    # Look specifically for Metropolis-Black.otf
+    for font_file in font_files:
+        if "Metropolis-Black" in font_file:
+            return font_file
+    
+    # If not found, return the first font
     return font_files[0]
 
 def get_emoji_font():
@@ -291,18 +296,37 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0):
     base_font_size = 90
     main_font_size = int(base_font_size * quality)
     
+    # Debug font loading
+    print(f"📝 Font path: {regular_font}")
+    
     # Create the main text clip (without emojis)
-    main_txt_clip = TextClip(
-        txt=text_without_emojis,
-        fontsize=main_font_size,  # Scale font size based on quality
-        color='white',
-        font=regular_font,
-        align='center',
-        method='caption',
-        size=(video_size[0] * 0.8, None),  # Width is 80% of video width
-        stroke_color='black',
-        stroke_width=max(1, int(3 * quality))  # Scale stroke width based on quality
-    )
+    try:
+        main_txt_clip = TextClip(
+            txt=text_without_emojis,
+            fontsize=main_font_size,  # Scale font size based on quality
+            color='white',
+            font=regular_font,
+            align='center',
+            method='caption',
+            size=(video_size[0] * 0.8, None),  # Width is 80% of video width
+            stroke_color='black',
+            stroke_width=max(1, int(3 * quality))  # Scale stroke width based on quality
+        )
+        print("✅ Successfully created text clip with specified font")
+    except Exception as e:
+        print(f"⚠️ Error using custom font: {str(e)}. Falling back to default font.")
+        # Try again with default font
+        main_txt_clip = TextClip(
+            txt=text_without_emojis,
+            fontsize=main_font_size,
+            color='white',
+            font=None,  # Use default font
+            align='center',
+            method='caption',
+            size=(video_size[0] * 0.8, None),
+            stroke_color='black',
+            stroke_width=max(1, int(3 * quality))
+        )
     
     # Set position and timing for main text
     main_txt_clip = main_txt_clip.set_position('center')
