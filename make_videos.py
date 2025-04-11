@@ -527,12 +527,17 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
         voice_line_path = os.path.join(voice_lines_dir, voice_line_filename)
         
         if os.path.exists(voice_line_path):
-            # Get voice line duration
+            # Load voice line and set its start time
             try:
                 voice_clip = AudioFileClip(voice_line_path)
+                # Set volume for voice clip
+                voice_clip = voice_clip.volumex(CONFIG["video"].get("voice_narration_volume", 1.0))
+                # Set the start time for this voice clip
+                voice_clip = voice_clip.set_start(video_duration)
+                # Add voice clip to audio clips list
+                audio_clips = [music_clip, voice_clip]
                 # Add a small buffer (0.5s) to ensure text stays visible after narration
                 slide_duration = voice_clip.duration + 0.5
-                voice_clip.close()
                 print(f"🔊 Found voice line for slide {i+1}: {slide_duration:.2f}s")
             except Exception as e:
                 print(f"⚠️ Error reading voice line {voice_line_filename}: {str(e)}")
@@ -568,7 +573,6 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     
     # Set volume levels from config
     background_music_volume = CONFIG["video"].get("background_music_volume", 0.5)
-    voice_narration_volume = CONFIG["video"].get("voice_narration_volume", 1.0)
     
     # Adjust music volume
     music_clip = music_clip.volumex(background_music_volume)
@@ -592,9 +596,14 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
             # Load voice line and set its start time
             try:
                 voice_clip = AudioFileClip(voice_line_path)
+                # Set volume for voice clip
+                voice_clip = voice_clip.volumex(CONFIG["video"].get("voice_narration_volume", 1.0))
+                # Set the start time for this voice clip
+                voice_clip = voice_clip.set_start(current_time)
+                # Add voice clip to audio clips list
+                audio_clips.append(voice_clip)
                 # Add a small buffer (0.5s) to ensure text stays visible after narration
                 slide_duration = voice_clip.duration + 0.5
-                voice_clip.close()
                 print(f"🔊 Found voice line for slide {i+1}: {slide_duration:.2f}s")
             except Exception as e:
                 print(f"⚠️ Error reading voice line {voice_line_filename}: {str(e)}")

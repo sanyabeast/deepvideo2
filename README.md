@@ -18,6 +18,8 @@ DeepVideo2 is a Python-based video generation system that transforms YAML scenar
 - **Project-Based Organization**: Organize all generated content by project name
 - **Audio Normalization**: Automatically normalize voice lines for consistent audio levels
 - **Intelligent Workflow**: Generate only the number of scenarios needed to reach your target
+- **Voice Line Generation**: Create voice narration for each slide with emotion control
+- **Flexible Configuration**: Use project-specific configuration files in the configs/ directory
 
 ## Installation
 
@@ -43,16 +45,23 @@ DeepVideo2 is a Python-based video generation system that transforms YAML scenar
    ```
    Note: This may require administrator privileges on Windows.
 
+5. Set up Zonos TTS Server (optional, for voice generation):
+   - Follow the instructions in `misc/zonos_injection/README.md` to integrate with Zonos
+
 ## Project Structure
 
 ```
 deepvideo2/
 ├── configs/               # Configuration files for different projects
+│   ├── sample.yaml        # Sample configuration file with documentation
+│   └── [project].yaml     # Project-specific configuration files
 ├── lib/
 │   ├── fonts/             # Regular text fonts
 │   ├── fonts_emoji/       # Emoji fonts (Noto Color Emoji recommended)
 │   ├── music/             # Background music files
 │   └── videos/            # Background video files
+├── misc/
+│   └── zonos_injection/   # Integration files for Zonos TTS server
 ├── output/                # Generated content organized by project
 │   └── {project_name}/    # Project-specific output directory
 │       ├── scenarios/     # Generated scenario files
@@ -70,12 +79,9 @@ deepvideo2/
 
 ### Configuration
 
-Create a configuration file in the `configs/` directory (e.g., `configs/motivation.yaml`):
+Create a configuration file in the `configs/` directory (e.g., `configs/motivation.yaml`). The filename (without extension) will be used as the project name:
 
 ```yaml
-# Project Information
-project_name: "motivation"
-
 # LLM Configuration
 llm:
   default_model: "meta-llama-3.1-8b-instruct"
@@ -97,164 +103,97 @@ video:
   imagemagick_binary: "path/to/magick.exe"
   background_music_volume: 0.2  # Volume multiplier for background music
   voice_narration_volume: 1.0   # Volume multiplier for voice narration
-
-# Prompt Configuration
-prompts:
-  # Topics and scenario generation prompts
-  # ...
 ```
 
-### Complete Pipeline
+You can use the provided `configs/sample.yaml` as a template.
 
-To run the entire pipeline (generate scenarios, voice lines, and videos):
+### Running the Pipeline
+
+The easiest way to run the entire pipeline is to use the master script:
 
 ```
-python make.py -c configs/your_config.yaml -n 5 -q 0.5
+python make.py -c configs/your_project.yaml -n 5
 ```
+
+This will:
+1. Check how many scenarios already exist for your project
+2. Generate new scenarios if needed to reach the target number
+3. Generate voice lines for all scenarios
+4. Generate videos for all scenarios
 
 Options:
 - `-c, --config`: Path to the configuration file (required)
-- `-n, --num`: Target number of scenarios/videos to have (default: 1)
-- `-q, --quality`: Quality factor (1.0 = full quality, 0.5 = half resolution, default: 1.0)
-
-The master script will:
-1. Check how many scenarios already exist
-2. Generate only the number needed to reach your target
-3. Create voice lines for all scenarios
-4. Generate videos for all unprocessed scenarios
+- `-n, --num`: Target number of videos to generate (default: 1)
+- `-q, --quality`: Quality factor for rendering (0.1-1.0, default: 1.0)
 
 ### Individual Steps
 
-You can also run each step individually:
+If you prefer to run each step separately:
 
 #### 1. Generate Scenarios
 
 ```
-python make_scenarios.py -c configs/your_config.yaml -n 3
+python make_scenarios.py -c configs/your_project.yaml -n 5
 ```
 
 Options:
 - `-c, --config`: Path to the configuration file (required)
-- `-n, --num`: Number of scenarios to generate (default: 1)
+- `-n, --iterations`: Number of scenarios to generate (default: 1)
+- `-m, --model`: Model name to use (overrides config)
 
 #### 2. Generate Voice Lines
 
 ```
-python make_voice_lines.py -c configs/your_config.yaml
+python make_voice_lines.py -c configs/your_project.yaml
 ```
 
 Options:
 - `-c, --config`: Path to the configuration file (required)
+- `-s, --scenario`: Specific scenario file to process (optional)
+- `-f, --force`: Force regeneration of existing voice lines (optional)
 
 #### 3. Generate Videos
 
 ```
-python make_videos.py -c configs/your_config.yaml -n -1 -q 0.5
+python make_videos.py -c configs/your_project.yaml
 ```
 
 Options:
 - `-c, --config`: Path to the configuration file (required)
-- `-n, --num`: Number of videos to generate (-1 for all unprocessed scenarios, default: -1)
-- `-q, --quality`: Quality factor (1.0 = full quality, 0.5 = half resolution, default: 1.0)
+- `-s, --scenario`: Specific scenario file to process (optional)
+- `-v, --vertical`: Generate vertical (9:16) video (default)
+- `-z, --horizontal`: Generate horizontal (16:9) video
+- `-f, --force`: Force regeneration of existing videos (optional)
+- `-q, --quality`: Quality factor for rendering (0.1-1.0, default: 1.0)
 
-### Cleaning and Resetting
+### Cleaning Up
 
-To reset the processed status of scenarios or clean generated content:
+To clean generated content:
 
 ```
-python clean.py -c configs/your_config.yaml [-h]
+python clean.py -c configs/your_project.yaml -r
 ```
 
 Options:
-- `-c, --config`: Path to the configuration file (required)
-- `-h, --hard`: Perform a hard clean (delete all generated content)
-
-## Scenario File Format
-
-Scenario files use YAML format with the following structure:
-
-```yaml
-music: music_file.mp3
-video: background_video.mp4
-has_video: false  # Set to true when processed
-slides:
-  - duration_seconds: 2
-    text: First slide text
-    emotion: happiness
-  - duration_seconds: 3
-    text: Second slide with emoji 🎉
-    emotion: surprise
-  - duration_seconds: 2
-    text: Final slide
-    emotion: neutral
-```
-
-- `music`: Background music file (located in lib/music/)
-- `video`: Background video file (located in lib/videos/)
-- `has_video`: Flag indicating whether this scenario has been processed
-- `slides`: List of slides with text, emotion, and duration
-  - `duration_seconds`: How long to display this slide
-  - `text`: The text to display
-  - `emotion`: The emotion for this slide (happiness, sadness, surprise, etc.)
+- `-c, --config`: Path to the configuration file
+- `-r, --reset`: Reset the has_video property in scenario files
+- `-d, --hard`: Delete all generated content for the project
+- `-a, --all`: Delete ALL output directories (use with caution)
 
 ## Troubleshooting
 
-### Font Issues
+### Voice Lines Not Working
 
-If text isn't rendering with the correct font:
+- Make sure the Zonos TTS server is running and accessible at the URL specified in your config
+- Check the `misc/zonos_injection/README.md` for setup instructions
+- Verify that voice samples exist at the paths specified in your config
 
-1. Ensure fonts are properly registered with ImageMagick:
-   ```
-   python register_fonts.py
-   ```
+### Text Rendering Issues
 
-2. Check the console output for font loading errors
-
-3. For Windows users: Make sure ImageMagick is correctly installed and the path is set in the environment variables
-
-### Video Generation Issues
-
-If video generation fails:
-
-1. Check that all required files (music, video) exist in the correct directories
-2. Verify the YAML scenario file format is correct
-3. Look for error messages in the console output
-4. Make sure the config file path is correct and accessible
+- Ensure ImageMagick is properly installed and the path is correct in your config
+- Run `python register_fonts.py` to register fonts with ImageMagick
+- Check that the fonts directory contains valid font files
 
 ## License
 
-MIT License
-
-Copyright (c) 2025 @sanyabeast (Ukraine)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-## Author
-
-Created by [@sanyabeast](https://github.com/sanyabeast) from Ukraine, 2025.
-
-## Credits
-
-- LM Studio for providing the local LLM capabilities
-- MoviePy for video editing capabilities
-- ImageMagick for text rendering
-- Pillow (PIL) for image processing
-- Emoji library for emoji handling
-- YAML for configuration parsing
-- Librosa and SoundFile for audio normalization
+[Specify your license information here]
