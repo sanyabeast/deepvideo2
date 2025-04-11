@@ -8,7 +8,7 @@ import glob
 from datetime import datetime
 import difflib
 import platform
-from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, ColorClip
+from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, ColorClip, CompositeAudioClip
 from moviepy.config import change_settings
 import emoji
 from PIL import ImageFont, Image, ImageDraw
@@ -20,41 +20,73 @@ PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
 # ─────────────────────────────────────────────────────
 # 🎲 CONFIGURATION
 # ─────────────────────────────────────────────────────
-def load_config():
-    """Load configuration from config.yaml file."""
-    config_path = os.path.join(PROJECT_DIR, "config.yaml")
+def load_config(config_path=None):
+    """Load configuration from config file."""
+    if config_path is None:
+        # Default to config.yaml in project root for backward compatibility
+        config_path = os.path.join(PROJECT_DIR, "config.yaml")
+    
+    # Check if the path is relative
+    if not os.path.isabs(config_path):
+        config_path = os.path.join(PROJECT_DIR, config_path)
+        
+    # Ensure the file exists
+    if not os.path.exists(config_path):
+        # Check if the user might have meant configs/ instead of config/
+        if 'config/' in config_path and not os.path.exists(config_path.replace('config/', 'configs/')):
+            raise FileNotFoundError(f"Config file not found: {config_path}\nDid you mean 'configs/' instead of 'config/'?")
+        
+        # Check if any config files exist in the configs directory
+        configs_dir = os.path.join(PROJECT_DIR, 'configs')
+        if os.path.exists(configs_dir):
+            config_files = [f for f in os.listdir(configs_dir) if f.endswith('.yaml')]
+            if config_files:
+                available_configs = '\n  - '.join([''] + [f'configs/{f}' for f in config_files])
+                raise FileNotFoundError(f"Config file not found: {config_path}\nAvailable config files:{available_configs}")
+        
+        # Default error message
+        raise FileNotFoundError(f"Config file not found: {config_path}\nPlease check the path and try again.")
+        
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
-# Load configuration
-CONFIG = load_config()
-
-# Configure MoviePy to use ImageMagick
-# Path to where ImageMagick is installed on the system
-change_settings({"IMAGEMAGICK_BINARY": CONFIG["video"]["imagemagick_binary"]})
-
-# Fix for PIL.Image.ANTIALIAS deprecation
-try:
-    import PIL
-    if not hasattr(PIL.Image, 'ANTIALIAS'):
-        # For newer versions of Pillow, ANTIALIAS is renamed to LANCZOS
-        PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
-except (ImportError, AttributeError):
-    pass
+# Global variables
+CONFIG = None
+SCRIPT_DIR = None
+SCENARIOS_DIR = None
+VIDEOS_DIR = None
+MUSIC_DIR = None
+VOICE_LINES_DIR = None
+OUTPUT_DIR = None
+FONTS_DIR = None
+EMOJI_FONTS_DIR = None
 
 # ─────────────────────────────────────────────────────
 # 📂 DIRECTORIES
 # ─────────────────────────────────────────────────────
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SCENARIOS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["scenarios"])
-VIDEOS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["videos_dir"])
-MUSIC_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["music_dir"])
-FONTS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["fonts_dir"])
-EMOJI_FONTS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["emoji_fonts_dir"])
-OUTPUT_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["output_videos"])
-
-# Create output directory if it doesn't exist
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+def update_directories():
+    """Update directory paths based on the loaded configuration."""
+    global SCRIPT_DIR, SCENARIOS_DIR, VIDEOS_DIR, MUSIC_DIR, VOICE_LINES_DIR, OUTPUT_DIR, FONTS_DIR, EMOJI_FONTS_DIR
+    
+    # Get project name
+    project_name = CONFIG.get("project_name", "DeepVideo2")
+    
+    # Set script directory
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    
+    # Input directories (static resources)
+    VIDEOS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["videos_dir"])
+    MUSIC_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["music_dir"])
+    FONTS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["fonts_dir"])
+    EMOJI_FONTS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["emoji_fonts_dir"])
+    
+    # Output directories (project-specific)
+    SCENARIOS_DIR = os.path.join(SCRIPT_DIR, "output", project_name, CONFIG["directories"]["scenarios"])
+    VOICE_LINES_DIR = os.path.join(SCRIPT_DIR, "output", project_name, CONFIG["directories"]["voice_lines"])
+    OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output", project_name, CONFIG["directories"]["output_videos"])
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ─────────────────────────────────────────────────────
 # 🔤 FONT HANDLING
@@ -201,33 +233,39 @@ def resize_video(clip, target_resolution):
     
     return final_clip
 
+def find_unprocessed_scenarios():
+    """Find all scenarios that haven't been processed yet."""
+    # Check if scenarios directory exists
+    if not os.path.exists(SCENARIOS_DIR):
+        print(f"❌ Scenarios directory not found: {SCENARIOS_DIR}")
+        return []
+    
+    # Get all YAML files in the scenarios directory
+    scenario_files = [os.path.join(SCENARIOS_DIR, f) for f in os.listdir(SCENARIOS_DIR) if f.endswith('.yaml')]
+    
+    # Filter out scenarios that have already been processed
+    unprocessed_scenarios = []
+    for scenario_path in scenario_files:
+        try:
+            with open(scenario_path, 'r', encoding='utf-8') as f:
+                scenario = yaml.safe_load(f)
+                # Check if the scenario has already been processed
+                if not scenario.get('has_video', False):
+                    unprocessed_scenarios.append(scenario_path)
+        except Exception as e:
+            print(f"⚠️ Error reading {os.path.basename(scenario_path)}: {str(e)}")
+    
+    return unprocessed_scenarios
+
 def find_random_scenario():
     """Find a random scenario that hasn't been processed yet."""
-    # Get all scenario files
-    scenario_files = [f for f in os.listdir(SCENARIOS_DIR) if f.endswith('.yaml')]
+    unprocessed_scenarios = find_unprocessed_scenarios()
     
-    if not scenario_files:
-        print("❌ No scenario files found.")
+    if not unprocessed_scenarios:
         return None
     
-    # Shuffle the files to get a random order
-    random.shuffle(scenario_files)
-    
-    # Find the first scenario that hasn't been processed
-    for filename in scenario_files:
-        scenario_path = os.path.join(SCENARIOS_DIR, filename)
-        
-        with open(scenario_path, 'r', encoding='utf-8') as f:
-            scenario = yaml.safe_load(f)
-        
-        # Check if the scenario has already been processed
-        if not scenario.get('has_video', False):
-            print(f"🎯 Selected scenario: {filename}")
-            print(f"📌 Topic: {scenario['topic']}")
-            return scenario_path
-    
-    print("❌ All scenarios already have videos.")
-    return None
+    # Select a random scenario
+    return random.choice(unprocessed_scenarios)
 
 def find_best_match(target, options):
     """Find the best matching file from a list of options using fuzzy matching."""
@@ -301,7 +339,7 @@ def format_text_for_display(text):
     # If all else fails, return the original text
     return text
 
-def create_text_clip(text, duration, start_time, video_size, quality=1.0):
+def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=None):
     """Create a text clip with the given text and duration."""
     # Format text for better display
     formatted_text = format_text_for_display(text)
@@ -311,7 +349,11 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0):
     text_without_emojis = remove_emojis(formatted_text)
     
     # Get font paths
-    regular_font_path = get_random_font()
+    if font is None:
+        regular_font_path = get_random_font()
+    else:
+        regular_font_path = font
+    
     emoji_font_path = get_emoji_font()
     
     if not regular_font_path:
@@ -424,6 +466,9 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     """Generate a video from a scenario."""
     print(f"📌 Topic: {scenario['topic']}")
     
+    # Get the scenario name (for finding voice lines)
+    scenario_name = os.path.splitext(os.path.basename(scenario_path))[0]
+    
     # Get the music and video files from scenario
     requested_music = scenario['music']
     requested_video = scenario['video']
@@ -439,9 +484,16 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     print(f"🎵 Using music: {music_file}")
     print(f"🎬 Using video: {video_file}")
     
+    # Select a consistent font for this scenario if enabled in config
+    use_consistent_font = CONFIG["video"].get("use_consistent_font", True)
+    scenario_font = None
+    if use_consistent_font:
+        scenario_font = get_random_font()
+        print(f"🔤 Selected consistent font for scenario: {os.path.basename(scenario_font)}")
+    
     # Load the video and audio clips
     video_clip = VideoFileClip(os.path.join(VIDEOS_DIR, video_file))
-    audio_clip = AudioFileClip(os.path.join(MUSIC_DIR, music_file))
+    music_clip = AudioFileClip(os.path.join(MUSIC_DIR, music_file))
     
     # Determine video orientation
     if vertical:
@@ -461,12 +513,39 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     # Resize video to target resolution
     video_clip = resize_video(video_clip, target_resolution)
     
-    # Get video duration from scenario or calculate from slides
-    if 'duration' in scenario:
-        video_duration = scenario['duration']
-    else:
-        # Calculate total duration from slides
-        video_duration = sum(slide['duration_seconds'] for slide in scenario['slides'])
+    # Create text clips for each slide
+    slides = scenario['slides']
+    print(f"📝 Creating {len(slides)} slides")
+    
+    # Check for voice lines and calculate adjusted durations
+    voice_lines_dir = VOICE_LINES_DIR
+    
+    # Calculate total video duration with adjusted slide durations
+    video_duration = 0
+    for i, slide in enumerate(slides):
+        # Check if voice line exists for this slide
+        slide_id = f"slide_{i+1:02d}"
+        voice_line_filename = f"{scenario_name}_{slide_id}.wav"
+        voice_line_path = os.path.join(voice_lines_dir, voice_line_filename)
+        
+        if os.path.exists(voice_line_path):
+            # Get voice line duration
+            try:
+                voice_clip = AudioFileClip(voice_line_path)
+                # Add a small buffer (0.5s) to ensure text stays visible after narration
+                slide_duration = voice_clip.duration + 0.5
+                voice_clip.close()
+                print(f"🔊 Found voice line for slide {i+1}: {slide_duration:.2f}s")
+            except Exception as e:
+                print(f"⚠️ Error reading voice line {voice_line_filename}: {str(e)}")
+                slide_duration = slide['duration_seconds']
+        else:
+            # Use original duration from scenario
+            slide_duration = slide['duration_seconds']
+            print(f"📝 No voice line for slide {i+1}, using original duration: {slide_duration}s")
+        
+        # Update total video duration
+        video_duration += slide_duration
     
     # Select a random segment from the video if it's longer than needed
     if video_clip.duration > video_duration:
@@ -478,35 +557,68 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
         # If video is shorter, loop it
         video_clip = video_clip.loop(duration=video_duration)
     
-    # Select a random segment from the audio if it's longer than needed
-    if audio_clip.duration > video_duration:
-        max_start_time = audio_clip.duration - video_duration
+    # Select a random segment from the music if it's longer than needed
+    if music_clip.duration > video_duration:
+        max_start_time = music_clip.duration - video_duration
         start_time = random.uniform(0, max_start_time)
-        print(f"🎵 Using audio segment starting at {start_time:.2f}s")
-        audio_clip = audio_clip.subclip(start_time, start_time + video_duration)
+        print(f"🎵 Using music segment starting at {start_time:.2f}s")
+        music_clip = music_clip.subclip(start_time, start_time + video_duration)
     else:
-        # If audio is shorter, loop it
-        audio_clip = audio_clip.loop(duration=video_duration)
+        # If music is shorter, loop it
+        music_clip = music_clip.loop(duration=video_duration)
     
-    # Set the audio for the video clip
-    video_clip = video_clip.set_audio(audio_clip)
+    # Set volume levels from config
+    background_music_volume = CONFIG["video"].get("background_music_volume", 0.5)
+    voice_narration_volume = CONFIG["video"].get("voice_narration_volume", 1.0)
     
-    # Create text clips for each slide
-    slides = scenario['slides']
-    print(f"📝 Creating {len(slides)} slides")
+    # Adjust music volume
+    music_clip = music_clip.volumex(background_music_volume)
+    print(f"🔊 Set background music volume to {background_music_volume:.1f}")
     
     # Create a list to hold all clips (video and text)
     all_clips = [video_clip]
     
-    # Add text clips for each slide
+    # Create a list to hold all audio clips (music and voice lines)
+    audio_clips = [music_clip]
+    
+    # Add text clips and voice lines for each slide
     current_time = 0
-    for slide in slides:
-        # Get slide text and duration
+    for i, slide in enumerate(slides):
+        # Get slide text
         slide_text = slide['text']
-        slide_duration = slide['duration_seconds']
         
-        # Create text clips for this slide
-        text_clips = create_text_clip(slide_text, slide_duration, current_time, target_resolution, quality)
+        # Check if voice line exists for this slide
+        slide_id = f"slide_{i+1:02d}"
+        voice_line_filename = f"{scenario_name}_{slide_id}.wav"
+        voice_line_path = os.path.join(voice_lines_dir, voice_line_filename)
+        
+        if os.path.exists(voice_line_path):
+            # Load voice line and set its start time
+            try:
+                voice_clip = AudioFileClip(voice_line_path)
+                # Add a small buffer (0.5s) to ensure text stays visible after narration
+                slide_duration = voice_clip.duration + 0.5
+                
+                # Set the start time for this voice clip
+                voice_clip = voice_clip.set_start(current_time)
+                
+                # Adjust voice volume
+                if voice_narration_volume != 1.0:
+                    voice_clip = voice_clip.volumex(voice_narration_volume)
+                
+                # Add to audio clips
+                audio_clips.append(voice_clip)
+                print(f"🔊 Added voice narration for slide {i+1}")
+            except Exception as e:
+                print(f"⚠️ Error adding voice line {voice_line_filename}: {str(e)}")
+                slide_duration = slide['duration_seconds']
+        else:
+            # Use original duration from scenario
+            slide_duration = slide['duration_seconds']
+            print(f"📝 No voice line for slide {i+1}, using original duration: {slide_duration}s")
+        
+        # Create text clips for this slide using the consistent font if enabled
+        text_clips = create_text_clip(slide_text, slide_duration, current_time, target_resolution, quality, scenario_font)
         all_clips.extend(text_clips)
         
         # Update current time
@@ -514,6 +626,15 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     
     # Compose the final video
     final_clip = CompositeVideoClip(all_clips)
+    
+    # Combine all audio tracks
+    if len(audio_clips) > 1:
+        print(f"🔊 Combining {len(audio_clips)} audio tracks ({len(audio_clips)-1} voice lines)")
+        final_audio = CompositeAudioClip(audio_clips)
+        final_clip = final_clip.set_audio(final_audio)
+    else:
+        # Just use the music if no voice lines
+        final_clip = final_clip.set_audio(music_clip)
     
     # Create the output filename
     output_filename = os.path.splitext(os.path.basename(scenario_path))[0] + '.mp4'
@@ -525,7 +646,13 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     
     # Close the clips to free up resources
     video_clip.close()
-    audio_clip.close()
+    music_clip.close()
+    
+    # Close any voice clips
+    for clip in audio_clips:
+        if clip != music_clip:  # Avoid closing music_clip twice
+            clip.close()
+    
     final_clip.close()
     
     print(f"✅ Video created successfully: {output_path}")
@@ -574,8 +701,10 @@ def process_scenario(scenario_path, vertical=True, force=False, quality=1.0):
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Generate videos from scenario files.')
-    parser.add_argument('-n', '--num-videos', type=int, default=1, 
-                        help='Number of videos to generate. Use -1 to process all available scenarios.')
+    parser.add_argument('-c', '--config', type=str, required=True,
+                        help='Path to the configuration file')
+    parser.add_argument('-n', '--num-videos', type=int, default=-1, 
+                        help='Number of videos to generate. Use -1 (default) to process all available unprocessed scenarios.')
     parser.add_argument('--horizontal', action='store_true', 
                         help='Generate horizontal (16:9) videos instead of vertical (9:16).')
     parser.add_argument('-s', '--scenario', type=str, help='Path to a specific scenario file to process')
@@ -588,6 +717,29 @@ def parse_args():
 def main():
     """Main function."""
     args = parse_args()
+    
+    # Load configuration from specified file
+    global CONFIG
+    CONFIG = load_config(args.config)
+    
+    # Configure MoviePy to use ImageMagick
+    change_settings({"IMAGEMAGICK_BINARY": CONFIG["video"]["imagemagick_binary"]})
+    
+    # Fix for PIL.Image.ANTIALIAS deprecation
+    try:
+        import PIL
+        if not hasattr(PIL.Image, 'ANTIALIAS'):
+            # For newer versions of Pillow, ANTIALIAS is renamed to LANCZOS
+            PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
+    except (ImportError, AttributeError):
+        pass
+    
+    # Update directory paths
+    update_directories()
+    
+    # Get project name
+    project_name = CONFIG.get("project_name", "DeepVideo2")
+    print(f"\n🚀 Starting {project_name} video generation")
     
     # Create output directory if it doesn't exist
     if not os.path.exists(OUTPUT_DIR):
@@ -613,32 +765,57 @@ def main():
         videos_generated = 0
         max_videos = args.num_videos
         
-        while True:
-            # Check if we've generated the requested number of videos
-            if max_videos > 0 and videos_generated >= max_videos:
-                break
+        # If max_videos is -1, process all unprocessed scenarios
+        if max_videos == -1:
+            unprocessed_scenarios = find_unprocessed_scenarios()
+            if not unprocessed_scenarios:
+                print("🏁 No unprocessed scenarios available.")
+                return
             
-            # Find a random scenario that hasn't been processed
-            scenario_path = find_random_scenario()
+            print(f"🎯 Found {len(unprocessed_scenarios)} unprocessed scenarios")
             
-            # If no more scenarios to process, break
-            if not scenario_path:
-                print("🏁 No more unprocessed scenarios available.")
-                break
+            for scenario_path in unprocessed_scenarios:
+                print(f"🎯 Processing scenario: {os.path.basename(scenario_path)}")
+                
+                # Process the scenario
+                success = process_scenario(scenario_path, vertical, quality=args.quality)
+                
+                if success:
+                    videos_generated += 1
+                    print(f"📊 Progress: {videos_generated}/{len(unprocessed_scenarios)} videos generated")
             
-            print(f"🎯 Selected scenario: {os.path.basename(scenario_path)}")
-            
-            # Process the scenario
-            success = process_scenario(scenario_path, vertical, quality=args.quality)
-            
-            if success:
-                videos_generated += 1
-                print(f"📊 Progress: {videos_generated}/{max_videos if max_videos > 0 else 'all'} videos generated")
-        
-        if videos_generated > 0:
-            print(f"✅ Successfully generated {videos_generated} videos.")
+            if videos_generated > 0:
+                print(f"✅ Successfully generated {videos_generated} videos.")
+            else:
+                print("❌ No videos were generated.")
         else:
-            print("❌ No videos were generated.")
+            # Process a specific number of random scenarios
+            while True:
+                # Check if we've generated the requested number of videos
+                if max_videos > 0 and videos_generated >= max_videos:
+                    break
+                
+                # Find a random scenario that hasn't been processed
+                scenario_path = find_random_scenario()
+                
+                # If no more scenarios to process, break
+                if not scenario_path:
+                    print("🏁 No more unprocessed scenarios available.")
+                    break
+                
+                print(f"🎯 Selected scenario: {os.path.basename(scenario_path)}")
+                
+                # Process the scenario
+                success = process_scenario(scenario_path, vertical, quality=args.quality)
+                
+                if success:
+                    videos_generated += 1
+                    print(f"📊 Progress: {videos_generated}/{max_videos if max_videos > 0 else 'all'} videos generated")
+            
+            if videos_generated > 0:
+                print(f"✅ Successfully generated {videos_generated} videos.")
+            else:
+                print("❌ No videos were generated.")
 
 if __name__ == "__main__":
     main()

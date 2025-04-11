@@ -12,25 +12,41 @@ PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
 # ─────────────────────────────────────────────────────
 # 🎲 CONFIGURATION
 # ─────────────────────────────────────────────────────
-def load_config():
-    """Load configuration from config.yaml file."""
-    config_path = os.path.join(PROJECT_DIR, "config.yaml")
+def load_config(config_path=None):
+    """Load configuration from config file."""
+    if config_path is None:
+        # Default to config.yaml in project root for backward compatibility
+        config_path = os.path.join(PROJECT_DIR, "config.yaml")
+    
+    # Check if the path is relative
+    if not os.path.isabs(config_path):
+        config_path = os.path.join(PROJECT_DIR, config_path)
+        
+    # Ensure the file exists
+    if not os.path.exists(config_path):
+        # Check if the user might have meant configs/ instead of config/
+        if 'config/' in config_path and not os.path.exists(config_path.replace('config/', 'configs/')):
+            raise FileNotFoundError(f"Config file not found: {config_path}\nDid you mean 'configs/' instead of 'config/'?")
+        
+        # Check if any config files exist in the configs directory
+        configs_dir = os.path.join(PROJECT_DIR, 'configs')
+        if os.path.exists(configs_dir):
+            config_files = [f for f in os.listdir(configs_dir) if f.endswith('.yaml')]
+            if config_files:
+                available_configs = '\n  - '.join([''] + [f'configs/{f}' for f in config_files])
+                raise FileNotFoundError(f"Config file not found: {config_path}\nAvailable config files:{available_configs}")
+        
+        # Default error message
+        raise FileNotFoundError(f"Config file not found: {config_path}\nPlease check the path and try again.")
+        
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
-# Load configuration
-CONFIG = load_config()
-
-# Set seed if not specified in config
-seed = CONFIG.get("llm", {}).get("seed", random.randint(0, 1000000))
-if seed == 0:  # If seed is 0, randomize it
-    seed = random.randint(0, 1000000)
-
-# LLM settings
-default_model_name = CONFIG["llm"]["default_model"]
-
-# Emotions list
-emotions = CONFIG["emotions"]
+# Global variables
+CONFIG = None
+seed = None
+default_model_name = None
+emotions = None
 
 # ─────────────────────────────────────────────────────
 # 📦 MODELS
@@ -58,12 +74,14 @@ def to_snake_case(text: str) -> str:
 
 def get_existing_topics():
     """Get a list of existing topics from scenario files."""
-    scenarios_dir = "scenarios"
     existing_topics = []
     
+    # Check if scenarios directory exists
+    scenarios_dir = os.path.join(PROJECT_DIR, "output", CONFIG.get("project_name", "DeepVideo2"), CONFIG["directories"]["scenarios"])
     if not os.path.exists(scenarios_dir):
         return existing_topics
     
+    # Iterate through all YAML files in the scenarios directory
     for filename in os.listdir(scenarios_dir):
         if filename.endswith('.yaml'):
             filepath = os.path.join(scenarios_dir, filename)
@@ -73,7 +91,7 @@ def get_existing_topics():
                     if scenario and 'topic' in scenario:
                         existing_topics.append(scenario['topic'])
             except Exception as e:
-                print(f"⚠️ Error reading {filename}: {str(e)}")
+                print(f"Error reading {filename}: {e}")
     
     return existing_topics
 
@@ -240,28 +258,57 @@ Create a **micro-story split into short slides** (like Instagram story frames) f
 
     return scenario
 
-def save_yaml(filename: str, data: dict):
-    output_dir = "scenarios"
-    os.makedirs(output_dir, exist_ok=True)
-    filepath = os.path.join(output_dir, filename)
-
+def save_yaml(filename, data):
+    """Save data to a YAML file in the scenarios directory."""
+    # Create the project-specific output directory
+    project_name = CONFIG.get("project_name", "DeepVideo2")
+    scenarios_dir = os.path.join(PROJECT_DIR, "output", project_name, CONFIG["directories"]["scenarios"])
+    os.makedirs(scenarios_dir, exist_ok=True)
+    
+    # Save the file
+    filepath = os.path.join(scenarios_dir, filename)
     with open(filepath, 'w', encoding='utf-8') as f:
-        yaml.dump(data, f, allow_unicode=True)
-
-    print_subheader(f"✅ Scenario saved as: {filepath}")
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    
+    print(f"👉 ✅ Scenario saved as: {os.path.relpath(filepath, PROJECT_DIR)}")
+    return filepath
 
 # ─────────────────────────────────────────────────────
 # 🚀 MAIN ENTRY
 # ─────────────────────────────────────────────────────
 def main():
-    global seed
+    global seed, CONFIG, default_model_name, emotions
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Generate motivational video scenarios')
+    parser.add_argument('-c', '--config', type=str, required=True,
+                        help='Path to the configuration file')
     parser.add_argument('-n', '--iterations', type=int, default=1, 
                         help='Number of scenarios to generate (default: 1)')
-    parser.add_argument('-m', '--model', type=str, default=default_model_name,
-                        help=f'Model name to use (default: {default_model_name})')
+    parser.add_argument('-m', '--model', type=str,
+                        help='Model name to use')
     args = parser.parse_args()
+    
+    # Load configuration from specified file
+    CONFIG = load_config(args.config)
+    
+    # Set seed if not specified in config
+    seed = CONFIG.get("llm", {}).get("seed", random.randint(0, 1000000))
+    if seed == 0:  # If seed is 0, randomize it
+        seed = random.randint(0, 1000000)
+    
+    # Get default model name from config
+    default_model_name = CONFIG["llm"]["default_model"]
+    
+    # Get emotions list from config
+    emotions = CONFIG["emotions"]
+    
+    # If model not specified in command line, use the default from config
+    if args.model is None:
+        args.model = default_model_name
+    
+    # Get project name
+    project_name = CONFIG.get("project_name", "DeepVideo2")
+    print(f"\n🚀 Starting {project_name} scenario generation")
     
     # Initialize the model with the specified model name
     model_name = args.model
@@ -269,7 +316,7 @@ def main():
         "seed": seed,
     })
     
-    print(f"\n✨ Using model: {model_name}")
+    print(f"✨ Using model: {model_name}")
     print(f"🔑 Random seed: {seed}")
     
     # Get existing topics to avoid duplicates
