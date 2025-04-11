@@ -101,7 +101,9 @@ Each topic should:
 - Appeal to younger audiences (Gen Z, Millennials)
 - Spark curiosity or emotion
 - Be suitable for short, powerful videos
-- Use only ENGLISH LANGUAGE
+- Use only plain ENGLISH words and phrases.
+- Do NOT include emojis, icons, or non-standard symbols.
+- Do NOT use non-English languages or phrases.
 """
 
     # Add existing topics to avoid if any
@@ -178,7 +180,9 @@ Create a **micro-story split into short slides** (like Instagram story frames) f
 - Uses rhythm, repetition, shock, or questions
 - Ends strong with a bold punchline or insight
 - Use everyday, casual Gen Z language
-- Use only ENGLISH LANGUAGE
+- Use only plain ENGLISH for all text.
+- Do NOT include emojis, emoticons, icons, or non-standard symbols.
+- Do NOT include non-English words, slang from other languages, or cultural references that may require translation.
 
 🎵 Available music files (select one that fits the mood):
 {", ".join(available_music)}
