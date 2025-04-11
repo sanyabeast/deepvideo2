@@ -101,6 +101,7 @@ Each topic should:
 - Appeal to younger audiences (Gen Z, Millennials)
 - Spark curiosity or emotion
 - Be suitable for short, powerful videos
+- Use only ENGLISH LANGUAGE
 """
 
     # Add existing topics to avoid if any
@@ -177,6 +178,7 @@ Create a **micro-story split into short slides** (like Instagram story frames) f
 - Uses rhythm, repetition, shock, or questions
 - Ends strong with a bold punchline or insight
 - Use everyday, casual Gen Z language
+- Use only ENGLISH LANGUAGE
 
 🎵 Available music files (select one that fits the mood):
 {", ".join(available_music)}
