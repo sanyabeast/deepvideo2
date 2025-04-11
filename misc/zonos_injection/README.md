@@ -1,60 +1,66 @@
-# Zonos TTS Server Injection
+# Zonos TTS Server Integration
 
-## What is this?
+## Overview
 
-This folder contains code that helps DeepVideo2 talk to the Zonos Text-to-Speech (TTS) server. It's like a translator between DeepVideo2 and Zonos, allowing our program to create voice lines with different emotions.
+This module provides an HTTP server integration layer between DeepVideo2 and the Zonos Text-to-Speech (TTS) server. It enables DeepVideo2 to programmatically request voice generation with emotion control through a standardized REST API.
 
-## How to Set It Up
+## Installation
 
-Setting this up is like adding a special ingredient to a recipe. You need to:
+The integration requires two simple steps:
 
-1. **Copy the HTTP Server**: Take the `http_server.py` file and place it inside your Zonos app folder.
+1. **Copy the HTTP Server**: Copy `http_server.py` from this directory to your Zonos application directory.
 
-2. **Update the Zonos App**: Find the `gradio_interface.py` file in your Zonos app and add our special code to it.
+2. **Modify the Zonos Application**: Update the Zonos `gradio_interface.py` file to initialize the HTTP server.
 
-### Step-by-Step Instructions
+### Implementation Steps
 
-#### 1. Copy the File
-Copy `http_server.py` from this folder to your Zonos app folder.
+#### 1. File Placement
+```bash
+cp http_server.py /path/to/your/zonos/app/
+```
 
-#### 2. Update the Zonos App
-Open the `gradio_interface.py` file in your Zonos app and make these two changes:
+#### 2. Code Integration
+Edit `gradio_interface.py` in your Zonos application and make the following changes:
 
-**First**: Add this import at the top of the file (with the other imports):
+**Add the import statement** at the top of the file with other imports:
 ```python
 from http_server import InjectedServer
 ```
 
-**Second**: Find the `build_interface()` function and add this line just before the `return demo` statement:
+**Initialize the server** in the `build_interface()` function just before the `return demo` statement:
 ```python
 injected_server = InjectedServer(custom_hook)
 ```
 
-## How It Works (In Simple Terms)
+## Architecture
 
-Imagine you have two people who speak different languages trying to talk to each other:
+The integration follows a simple proxy pattern:
 
-1. DeepVideo2 wants to say "Create a voice line with a happy emotion"
-2. Our HTTP server acts as a translator
-3. The translator tells Zonos what DeepVideo2 wants
-4. Zonos creates the voice and gives it back to the translator
-5. The translator gives the voice back to DeepVideo2
+1. DeepVideo2 sends HTTP requests to the injected server on port 5001
+2. The server translates these requests into appropriate function calls to the Zonos TTS engine
+3. The Zonos engine generates the audio with the specified emotion
+4. The server returns the generated audio data back to DeepVideo2
 
-This way, DeepVideo2 can create voice lines with different emotions without having to know how to speak directly to Zonos.
+This architecture decouples DeepVideo2 from the Zonos implementation details, allowing for a clean API boundary.
 
-## Testing It
+## Usage
 
-After setting everything up:
+After installation:
 
-1. Start your Zonos app
-2. The HTTP server will automatically start listening on port 5001
-3. DeepVideo2 will be able to send requests to `http://localhost:5001/generate`
+1. Start the Zonos application (which will automatically initialize the HTTP server)
+2. The server listens on `http://localhost:5001` by default
+3. DeepVideo2 can send POST requests to `/generate` with the required parameters
 
-If everything is working correctly, you'll see messages in your Zonos console when DeepVideo2 requests a new voice line.
+The server accepts requests with the following parameters:
+- `text`: The text to synthesize (required)
+- `emotion`: The emotional tone to apply (optional)
+- `rate`: Speech rate (optional)
+- `samples`: Voice sample files (optional)
 
-## Need Help?
+## Troubleshooting
 
-If you run into any problems, check that:
-- The `http_server.py` file is in the right place
-- You've added both code snippets to `gradio_interface.py`
-- The Zonos app is running before you try to generate voice lines with DeepVideo2
+Common issues to check:
+- Verify `http_server.py` is in the correct directory
+- Confirm both code modifications in `gradio_interface.py` are properly implemented
+- Ensure the Zonos application is running before attempting to generate voice lines
+- Check port 5001 is not being used by another application
