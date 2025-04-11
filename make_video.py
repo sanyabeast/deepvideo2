@@ -74,40 +74,48 @@ def get_system_emoji_font():
 
 def get_random_font():
     """Get a random font from the fonts directory."""
-    if not os.path.exists(FONTS_DIR):
+    font_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib", "fonts")
+    if not os.path.exists(font_dir):
+        print(f"⚠️ Font directory not found: {font_dir}")
         return None
     
-    font_files = [os.path.join(FONTS_DIR, f) for f in os.listdir(FONTS_DIR) if f.endswith(('.ttf', '.otf'))]
+    font_files = []
+    for ext in [".ttf", ".otf"]:
+        font_files.extend(glob.glob(os.path.join(font_dir, f"*{ext}")))
+    
     if not font_files:
+        print("⚠️ No font files found in the fonts directory.")
         return None
     
-    # Look specifically for AbrilFatface-Regular.otf
-    for font_file in font_files:
-        if "AbrilFatface-Regular" in font_file:
-            return font_file
-    
-    # If not found, return the first font
-    return font_files[0]
+    # Return a random font from the directory
+    random_font = random.choice(font_files)
+    print(f"🔤 Selected random font: {os.path.basename(random_font)}")
+    return random_font
 
 def get_emoji_font():
-    """Get an emoji font from the emoji fonts directory."""
-    if not os.path.exists(EMOJI_FONTS_DIR):
+    """Get a font for emoji rendering from the emoji fonts directory."""
+    emoji_font_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib", "fonts_emoji")
+    if not os.path.exists(emoji_font_dir):
+        print(f"⚠️ Emoji font directory not found: {emoji_font_dir}")
         return None
     
-    emoji_font_files = [os.path.join(EMOJI_FONTS_DIR, f) for f in os.listdir(EMOJI_FONTS_DIR) 
-                        if f.endswith(('.ttf', '.otf'))]
+    # Look for Noto Color Emoji font first
+    noto_fonts = glob.glob(os.path.join(emoji_font_dir, "*Noto*Emoji*.ttf"))
+    if noto_fonts:
+        noto_font = noto_fonts[0]
+        print(f"🔤 Found Noto Emoji font: {os.path.basename(noto_font)}")
+        return noto_font
     
-    if not emoji_font_files:
-        return None
+    # If no Noto font, try any other emoji font
+    emoji_fonts = glob.glob(os.path.join(emoji_font_dir, "*.ttf"))
+    if emoji_fonts:
+        emoji_font = emoji_fonts[0]
+        print(f"🔤 Using emoji font: {os.path.basename(emoji_font)}")
+        return emoji_font
     
-    # Prioritize Noto Color Emoji if available
-    for font_file in emoji_font_files:
-        if 'noto' in os.path.basename(font_file).lower() and 'emoji' in os.path.basename(font_file).lower():
-            print(f"🔤 Found Noto Emoji font: {os.path.basename(font_file)}")
-            return font_file
-    
-    # Otherwise use the first emoji font
-    return emoji_font_files[0]
+    # If no emoji fonts found, return None
+    print("⚠️ No emoji fonts found in the emoji fonts directory.")
+    return None
 
 def extract_emojis(text):
     """Extract emoji characters from text."""
