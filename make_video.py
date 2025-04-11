@@ -233,7 +233,6 @@ def format_text_for_display(text):
         ': ', '; ', 
         ', ', 
         ' - ', 
-        ' (', 
         ' but ', ' and ', ' or ', 
         ' because ', ' when ', ' if '
     ]
@@ -268,7 +267,7 @@ def format_text_for_display(text):
     # If all else fails, return the original text
     return text
 
-def create_text_clip(text, duration, start_time, video_size):
+def create_text_clip(text, duration, start_time, video_size, quality=1.0):
     """Create a text clip with the given text and duration."""
     # Format text for better display
     formatted_text = format_text_for_display(text)
@@ -288,17 +287,21 @@ def create_text_clip(text, duration, start_time, video_size):
         print(f"🔤 Using font for regular text: {os.path.basename(regular_font_path)}")
         regular_font = regular_font_path
     
+    # Scale font sizes based on quality
+    base_font_size = 90
+    main_font_size = int(base_font_size * quality)
+    
     # Create the main text clip (without emojis)
     main_txt_clip = TextClip(
         txt=text_without_emojis,
-        fontsize=90,  # Increased font size for better visibility
+        fontsize=main_font_size,  # Scale font size based on quality
         color='white',
         font=regular_font,
         align='center',
         method='caption',
         size=(video_size[0] * 0.8, None),  # Width is 80% of video width
         stroke_color='black',
-        stroke_width=3  # Increased stroke width for better visibility
+        stroke_width=max(1, int(3 * quality))  # Scale stroke width based on quality
     )
     
     # Set position and timing for main text
@@ -311,9 +314,11 @@ def create_text_clip(text, duration, start_time, video_size):
         print(f"🔤 Rendering emojis separately: {emojis}")
         print(f"🔤 Using emoji font: {os.path.basename(emoji_font_path)}")
         
+        emoji_font_size = int(100 * quality)  # Scale emoji font size
+        
         emoji_txt_clip = TextClip(
             txt=emojis,
-            fontsize=100,  # Slightly larger for emojis
+            fontsize=emoji_font_size,  # Scale emoji font size based on quality
             color='white',
             font=emoji_font_path,
             align='center',
@@ -417,7 +422,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
         slide_duration = slide['duration_seconds']
         
         # Create text clips for this slide
-        text_clips = create_text_clip(slide_text, slide_duration, current_time, target_resolution)
+        text_clips = create_text_clip(slide_text, slide_duration, current_time, target_resolution, quality)
         all_clips.extend(text_clips)
         
         # Update current time
