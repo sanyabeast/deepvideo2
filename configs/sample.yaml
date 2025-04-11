@@ -1,0 +1,89 @@
+# ─────────────────────────────────────────────────────
+# 🎲 SAMPLE CONFIGURATION FILE
+# ─────────────────────────────────────────────────────
+# This is a sample configuration file for DeepVideo2.
+# Copy this file and modify it for your own projects.
+
+# Project Information
+project_name: "sample"
+
+# LLM Configuration
+llm:
+  default_model: "meta-llama-3.1-8b-instruct"  # Your local LLM model name
+  seed: 0  # Will be randomized at runtime if not specified
+
+# Voice Generation Configuration
+voice:
+  zonos_tts_server: "http://localhost:5001/generate"  # URL to your TTS server
+  voice_samples:
+    - "C:\\path\\to\\voice\\sample1.mp3"  # Path to voice sample files
+    - "C:\\path\\to\\voice\\sample2.mp3"
+  speech_rate: "15"  # Speech rate for TTS (higher = faster)
+  normalization:
+    target_db: -20.0  # Target dB level for audio normalization
+    enabled: true     # Whether to automatically normalize generated voice lines
+
+# Video Generation Configuration
+video:
+  imagemagick_binary: "C:\\path\\to\\ImageMagick\\magick.exe"  # Path to ImageMagick binary
+  background_music_volume: 0.2  # Volume multiplier for background music (0.0 to 1.0)
+  voice_narration_volume: 1.0   # Volume multiplier for voice narration (0.0 to 1.0)
+  use_consistent_font: true     # Use the same font for all slides in a scenario
+
+# Emotions List
+emotions:
+  - "happiness"
+  - "sadness"
+  - "disgust"
+  - "fear"
+  - "surprise"
+  - "anger"
+  - "neutral"
+
+# Prompt Configuration
+prompts:
+  # Topics generation prompt
+  topics:
+    role: "You are a creative and insightful motivational content strategist for short-form video platforms (TikTok, Reels, YouTube Shorts)."
+    instruction: "Generate a list of 5 **fresh and unconventional motivational video topics**. Avoid cliché, overused ideas like \"overcoming fear\" or \"imposter syndrome\". Be unique, thought-provoking, and modern."
+    requirements:
+      - "Be specific and catchy"
+      - "Appeal to younger audiences (Gen Z, Millennials)"
+      - "Spark curiosity or emotion"
+      - "Be suitable for short, powerful videos"
+      - "Use only plain ENGLISH words and phrases."
+      - "Do NOT include emojis, icons, or non-standard symbols."
+      - "Do NOT use non-English languages or phrases."
+  
+  # Scenario generation prompt
+  scenario:
+    role: "You are a short-form video copywriter crafting motivational videos for TikTok, Reels, and YouTube Shorts."
+    instruction: "Create a **micro-story split into short slides** (like Instagram story frames) for the topic: \"{topic}\""
+    constraints:
+      - "Total video duration: **8-16 seconds max**"
+      - "Each slide: **very short sentence or phrase**, 3–8 words"
+      - "Each slide duration: **1 to 4 seconds** (max)"
+      - "Max 8 slides"
+    style:
+      - "Ultra-punchy and emotionally charged"
+      - "Hooks the viewer in slide 1"
+      - "Builds emotional or motivational momentum"
+      - "Uses rhythm, repetition, shock, or questions"
+      - "Ends strong with a bold punchline or insight"
+      - "Use everyday, casual Gen Z language"
+      - "Use only plain ENGLISH for all text."
+      - "Do NOT include emojis, emoticons, icons, or non-standard symbols."
+      - "Do NOT include non-English words, slang from other languages, or cultural references that may require translation."
+
+# Directory Configuration
+directories:
+  # Input directories
+  videos_dir: "lib/videos"
+  music_dir: "lib/music"
+  fonts_dir: "lib/fonts"
+  emoji_fonts_dir: "lib/fonts_emoji"
+  
+  # Output directories (will be created under output/{project_name}/)
+  scenarios: "scenarios"
+  voice_lines: "voice_lines"
+  output_videos: "videos"
