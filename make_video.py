@@ -1,12 +1,18 @@
 import os
-import yaml
+import sys
 import random
+import yaml
 import argparse
+import re
+import glob
+from datetime import datetime
 import difflib
 import platform
-import re
 from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, ColorClip
 from moviepy.config import change_settings
+import emoji
+from PIL import ImageFont, Image, ImageDraw
+import numpy as np
 
 # Configure MoviePy to use ImageMagick
 # Path to where ImageMagick is installed on the system
@@ -75,9 +81,9 @@ def get_random_font():
     if not font_files:
         return None
     
-    # Look specifically for Metropolis-Black.otf
+    # Look specifically for AbrilFatface-Regular.otf
     for font_file in font_files:
-        if "Metropolis-Black" in font_file:
+        if "AbrilFatface-Regular" in font_file:
             return font_file
     
     # If not found, return the first font
@@ -290,43 +296,74 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0):
         regular_font = None
     else:
         print(f"🔤 Using font for regular text: {os.path.basename(regular_font_path)}")
-        regular_font = regular_font_path
+        # Instead of using the path, use just the font name without extension
+        font_name = os.path.splitext(os.path.basename(regular_font_path))[0]
+        print(f"🔤 Font name for MoviePy: {font_name}")
+        regular_font = font_name
     
     # Scale font sizes based on quality
     base_font_size = 90
     main_font_size = int(base_font_size * quality)
     
+    # Scale stroke width based on quality
+    base_stroke_width = 3
+    stroke_width = max(1, int(base_stroke_width * quality))
+    
     # Debug font loading
-    print(f"📝 Font path: {regular_font}")
+    print(f"📝 Font path: {regular_font_path}")
+    
+    # Test if the font can be loaded by PIL
+    try:
+        test_font = ImageFont.truetype(regular_font_path, main_font_size)
+        print(f"✅ Font loaded successfully by PIL: {test_font.getname()}")
+    except Exception as e:
+        print(f"⚠️ PIL couldn't load font: {str(e)}")
     
     # Create the main text clip (without emojis)
     try:
-        main_txt_clip = TextClip(
-            txt=text_without_emojis,
-            fontsize=main_font_size,  # Scale font size based on quality
-            color='white',
-            font=regular_font,
-            align='center',
-            method='caption',
-            size=(video_size[0] * 0.8, None),  # Width is 80% of video width
-            stroke_color='black',
-            stroke_width=max(1, int(3 * quality))  # Scale stroke width based on quality
-        )
-        print("✅ Successfully created text clip with specified font")
-    except Exception as e:
-        print(f"⚠️ Error using custom font: {str(e)}. Falling back to default font.")
-        # Try again with default font
+        # For MoviePy on Windows, try using just the font name
         main_txt_clip = TextClip(
             txt=text_without_emojis,
             fontsize=main_font_size,
             color='white',
-            font=None,  # Use default font
+            font=regular_font,
             align='center',
             method='caption',
             size=(video_size[0] * 0.8, None),
             stroke_color='black',
-            stroke_width=max(1, int(3 * quality))
+            stroke_width=stroke_width
         )
+        print("✅ Successfully created text clip with specified font")
+    except Exception as e:
+        print(f"⚠️ Error using font name: {str(e)}. Trying with full path.")
+        try:
+            # If font name doesn't work, try with full path
+            main_txt_clip = TextClip(
+                txt=text_without_emojis,
+                fontsize=main_font_size,
+                color='white',
+                font=regular_font_path,  # Try with full path
+                align='center',
+                method='caption',
+                size=(video_size[0] * 0.8, None),
+                stroke_color='black',
+                stroke_width=stroke_width
+            )
+            print("✅ Successfully created text clip with font path")
+        except Exception as e:
+            print(f"⚠️ Error using font path: {str(e)}. Falling back to default.")
+            # If all else fails, use default font
+            main_txt_clip = TextClip(
+                txt=text_without_emojis,
+                fontsize=main_font_size,
+                color='white',
+                font=None,
+                align='center',
+                method='caption',
+                size=(video_size[0] * 0.8, None),
+                stroke_color='black',
+                stroke_width=stroke_width
+            )
     
     # Set position and timing for main text
     main_txt_clip = main_txt_clip.set_position('center')
@@ -490,7 +527,7 @@ def process_scenario(scenario_path, vertical=True, force=False, quality=1.0):
         # Check if the scenario has already been processed
         if not force and scenario.get('has_video', False):
             print(f"⚠️ Scenario has already been processed: {scenario_path}")
-            print(f"   Use --force to process it anyway.")
+            print(f"   Use -f to process it anyway.")
             return False
         
         # Generate the video
@@ -519,7 +556,7 @@ def parse_args():
     parser.add_argument('--horizontal', action='store_true', 
                         help='Generate horizontal (16:9) videos instead of vertical (9:16).')
     parser.add_argument('-s', '--scenario', type=str, help='Path to a specific scenario file to process')
-    parser.add_argument('--force', action='store_true',
+    parser.add_argument('-f', '--force', action='store_true',
                         help='Force processing of a scenario even if it has already been processed')
     parser.add_argument('-q', '--quality', type=float, default=1.0,
                         help='Quality factor for rendering (1.0 = full quality, 0.5 = half resolution)')
