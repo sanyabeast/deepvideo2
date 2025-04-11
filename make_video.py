@@ -228,20 +228,28 @@ def format_text_for_display(text):
         return text
     
     # Break points in order of priority
-    break_points = [
+    primary_break_points = ['. ', '! ', '? ']  # These will split at all occurrences
+    secondary_break_points = [
         ': ', '; ', 
         ', ', 
-        '? ', 
-        '! ', 
-        '. ', 
         ' - ', 
         ' (', 
         ' but ', ' and ', ' or ', 
         ' because ', ' when ', ' if '
     ]
     
-    # Try to find a good break point
-    for separator in break_points:
+    # First try to split at all periods, question marks, and exclamation points
+    for separator in primary_break_points:
+        if separator in text:
+            parts = text.split(separator)
+            # Add the separator back to each part except the last one
+            for i in range(len(parts) - 1):
+                parts[i] += separator.rstrip()
+            # Join with newlines
+            return '\n'.join(parts)
+    
+    # If no primary break points, try secondary ones (only split at first occurrence)
+    for separator in secondary_break_points:
         if separator in text:
             parts = text.split(separator, 1)  # Split only on the first occurrence
             # For conjunctions, keep them with the second part
@@ -249,15 +257,13 @@ def format_text_for_display(text):
                 return parts[0] + '\n' + separator.strip() + parts[1]
             else:
                 # For punctuation, keep it with the first part
-                return parts[0] + separator.rstrip() + '\n' + parts[1].lstrip()
+                return parts[0] + separator.rstrip() + '\n' + parts[1]
     
-    # If no good break point is found but text is still long, try to break at a space
-    # near the middle of the text
-    if len(text) > 40:
-        words = text.split()
-        if len(words) > 3:
-            middle_idx = len(words) // 2
-            return ' '.join(words[:middle_idx]) + '\n' + ' '.join(words[middle_idx:])
+    # If text is still too long and no break points found, just split in the middle
+    words = text.split()
+    if len(words) > 5:
+        middle_idx = len(words) // 2
+        return ' '.join(words[:middle_idx]) + '\n' + ' '.join(words[middle_idx:])
     
     # If all else fails, return the original text
     return text
