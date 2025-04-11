@@ -7,7 +7,7 @@ This script processes videos in the lib/videos folder by:
 1. Extracting frames from each video
 2. Getting descriptions for each frame using an LLM
 3. Generating a summary name for the video based on the frame descriptions
-4. Optionally renaming the video file with the generated name
+4. Renaming the video file with the generated name
 """
 
 import argparse
@@ -46,8 +46,8 @@ def is_video_file(file_path):
     return mime is not None and mime.startswith("video")
 
 
-def extract_frames(video_path, num_frames=4):
-    """Extract frames from a video file."""
+def extract_frames(video_path, num_frames=5):
+    """Extract frames from a video file at different parts."""
     print(f"🎬 Extracting {num_frames} frames from: {os.path.basename(video_path)}")
     
     # Create a temporary directory for this video's frames
@@ -58,9 +58,17 @@ def extract_frames(video_path, num_frames=4):
     # Load the video
     clip = VideoFileClip(video_path)
     
-    # Calculate frame positions (evenly spaced)
+    # Calculate frame positions (distributed across the video)
     duration = clip.duration
-    frame_times = [duration * i / (num_frames + 1) for i in range(1, num_frames + 1)]
+    
+    # Get frames from different parts of the video (start, 25%, 50%, 75%, end)
+    frame_times = [
+        duration * 0.1,           # Near the beginning
+        duration * 0.25,          # First quarter
+        duration * 0.5,           # Middle
+        duration * 0.75,          # Third quarter
+        duration * 0.9            # Near the end
+    ]
     
     frame_paths = []
     for i, time in enumerate(frame_times):
@@ -77,7 +85,7 @@ def extract_frames(video_path, num_frames=4):
     # Close the video clip
     clip.close()
     
-    return frame_paths
+    return frame_paths, frames_dir
 
 
 def get_frame_descriptions(model, frame_paths):
@@ -94,14 +102,15 @@ def get_frame_descriptions(model, frame_paths):
             
             # Create the prompt for the LLM
             prompt = """
-Describe this image in detail. Focus on:
-- The main subject or scene
-- Key visual elements
-- Colors, lighting, and atmosphere
-- Any notable actions or events shown
+                Describe this image for use in a video filename. Focus on **what is clearly visible** in the frame and how it feels. Include:
 
-Provide a comprehensive description in 2-3 sentences.
-"""
+                - The most obvious visual subject or scene (e.g. mountain, crowded street, stormy sea, close-up of food)
+                - Mood or emotional tone (e.g. tense, peaceful, chaotic)
+                - Lighting and color scheme (e.g. dark blue night, bright pastel tones)
+                - Time of day or weather if relevant
+
+                Write in **1 detailed sentence** that clearly helps someone identify this image at a glance. Be very descriptive but **avoid metaphors or poetic language**. Do NOT repeat similar ideas from other frames. This will be used for **file naming**, so keep the language practical and visual.
+                """
             
             # Get the description from the LLM
             chat.add_user_message(prompt, images=[image_handle])
@@ -128,16 +137,23 @@ def generate_video_name(model, descriptions, video_path, min_length=32, max_leng
         
         # Create the prompt for the LLM
         prompt = f"""
-I have extracted {len(descriptions)} frames from a video and obtained the following descriptions:
+            You are helping organize a video collection. I have extracted {len(descriptions)} frames from a video and received these descriptions:
 
-{chr(10).join([f"Frame {i+1}: {desc}" for i, desc in enumerate(descriptions)])}
+            {chr(10).join([f"Frame {i+1}: {desc}" for i, desc in enumerate(descriptions)])}
 
-Based on these descriptions, suggest a filename for this video.
-Generate a filename using lowercase snake_case format, with a minimum length of {min_length} characters and a maximum of {max_length} characters.
-Do not include the file extension in the filename.
-Do not use personal names.
-The filename should capture the essence of what this video shows.
-"""
+            Generate a **precise and informative filename** that summarizes the visual mood and content of this video based on those frames.
+
+            Requirements:
+            1. Use only **lowercase letters, numbers, and underscores**.
+            2. Describe **what the video looks like** and **how it feels** to watch.
+            3. Include important visible elements, mood, colors, and setting (e.g. gloomy_forest_with_mist, sunrise_over_pink_desert_road).
+            4. NO file extension. NO special characters.
+            5. The name must be **between {min_length} and {max_length} characters**.
+            6. Avoid vague terms like "scenery", "footage", "image", "background".
+            7. Do NOT use personal names or copyrighted terms.
+
+            Goal: Help someone understand the look and emotional tone of the video at a glance from the filename alone.
+            """
         
         # Get the summary from the LLM
         chat.add_user_message(prompt)
@@ -151,6 +167,9 @@ The filename should capture the essence of what this video shows.
             suggested_filename = suggested_filename.ljust(min_length, "_")
         if len(suggested_filename) > max_length:
             suggested_filename = suggested_filename[:max_length]
+        
+        # Ensure filename only contains safe characters
+        suggested_filename = ''.join(c for c in suggested_filename if c.isalnum() or c == '_')
         
         print(f"  ✅ Generated name: {suggested_filename}")
         return suggested_filename
@@ -186,10 +205,9 @@ def main():
     """Main function."""
     parser = argparse.ArgumentParser(description="Process videos in lib/videos folder using LLM for naming.")
     parser.add_argument("-m", "--model", default="gemma-3-4b-it", help="Model name to use for image analysis (default: gemma-3-4b-it)")
-    parser.add_argument("-f", "--frames", type=int, default=4, help="Number of frames to extract per video (default: 4)")
+    parser.add_argument("-f", "--frames", type=int, default=5, help="Number of frames to extract per video (default: 5)")
     parser.add_argument("--min", "--min-length", type=int, default=32, help="Minimum filename length (default: 32)")
     parser.add_argument("--max", "--max-length", type=int, default=128, help="Maximum filename length (default: 128)")
-    parser.add_argument("-r", "--rename", action="store_true", help="Rename the original video files (default: false)")
     args = parser.parse_args()
     
     # Check if the videos directory exists
@@ -219,13 +237,20 @@ def main():
     
     print(f"🎥 Found {total_videos} video(s). Starting processing...\n")
     
-    # Process each video
+    # Process each video sequentially
     for idx, video_path in enumerate(video_files, start=1):
         print(f"\n[{idx}/{total_videos}] Processing video: {video_path.name}")
         
+        # Create a temporary directory for this video's frames
+        video_name = os.path.splitext(video_path.name)[0]
+        frames_dir = os.path.join(TEMP_DIR, video_name)
+        os.makedirs(frames_dir, exist_ok=True)
+        
+        frame_paths = []
+        
         try:
             # Extract frames from the video
-            frame_paths = extract_frames(str(video_path), args.frames)
+            frame_paths, frames_dir = extract_frames(str(video_path), args.frames)
             
             # Get descriptions for each frame
             descriptions = get_frame_descriptions(model, frame_paths)
@@ -237,21 +262,49 @@ def main():
             # Save metadata
             metadata_path = save_metadata(str(video_path), descriptions, suggested_name)
             
-            # Rename the video file if requested
-            if args.rename:
-                new_filename = suggested_name + video_path.suffix.lower()
-                new_filepath = video_path.with_name(new_filename)
-                
-                if new_filepath.exists():
-                    print(f"⏭️ Skipped renaming: {new_filename} already exists.")
-                else:
-                    video_path.rename(new_filepath)
+            # Rename the video file
+            new_filename = suggested_name + os.path.splitext(str(video_path))[1]
+            new_filepath = os.path.join(VIDEOS_DIR, new_filename)
+            
+            if os.path.exists(new_filepath):
+                print(f"⏭️ Skipped renaming: {new_filename} already exists.")
+            else:
+                # Rename using os functions to ensure it works with string paths
+                try:
+                    os.rename(str(video_path), new_filepath)
                     print(f"✅ Renamed video to: {new_filename}")
+                except Exception as e:
+                    print(f"❌ Error renaming file: {str(e)}")
             
             print(f"✅ [{idx}/{total_videos}] Completed processing: {video_path.name}")
             
         except Exception as e:
             print(f"❌ [{idx}/{total_videos}] Error processing {video_path.name}: {str(e)}")
+        
+        finally:
+            # Clean up temporary files regardless of success or failure
+            print(f"  🧹 Cleaning up temporary files...")
+            for frame_path in frame_paths:
+                if os.path.exists(frame_path):
+                    try:
+                        os.remove(frame_path)
+                    except Exception:
+                        pass
+            
+            if os.path.exists(frames_dir):
+                try:
+                    shutil.rmtree(frames_dir)
+                except Exception:
+                    pass
+    
+    # Clean up the entire temp directory at the end
+    try:
+        if os.path.exists(TEMP_DIR):
+            print(f"\n🧹 Cleaning up temp directory...")
+            shutil.rmtree(TEMP_DIR)
+            os.makedirs(TEMP_DIR, exist_ok=True)  # Recreate an empty temp directory
+    except Exception as e:
+        print(f"⚠️ Warning: Could not clean up temp directory: {str(e)}")
     
     print("\n🎉 All done!")
 

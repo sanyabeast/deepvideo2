@@ -96,7 +96,12 @@ def get_existing_topics():
     
     return existing_topics
 
-def get_available_music(limit=6):
+def get_available_music(limit=None):
+    """Get a list of available music files."""
+    if limit is None:
+        # Get the limit from config, default to 10 if not specified
+        limit = CONFIG.get("media_options", {}).get("music_files_count", 10)
+    
     music_dir = os.path.join("lib", "music")
     all_music = [f for f in os.listdir(music_dir) if os.path.isfile(os.path.join(music_dir, f))]
     # Randomly select a subset if we have more than the limit
@@ -104,7 +109,12 @@ def get_available_music(limit=6):
         return random.sample(all_music, limit)
     return all_music
 
-def get_available_videos(limit=6):
+def get_available_videos(limit=None):
+    """Get a list of available video files."""
+    if limit is None:
+        # Get the limit from config, default to 10 if not specified
+        limit = CONFIG.get("media_options", {}).get("video_files_count", 10)
+    
     videos_dir = os.path.join("lib", "videos")
     all_videos = [f for f in os.listdir(videos_dir) if os.path.isfile(os.path.join(videos_dir, f))]
     # Randomly select a subset if we have more than the limit
@@ -191,9 +201,9 @@ Output a JSON like:
 def get_scenario(model, topic):
     print_header(f"Creating short-form video scenario for:\n📌 {topic}")
     
-    # Get available media files (limited to 6 each)
-    available_music = get_available_music(6)
-    available_videos = get_available_videos(6)
+    # Get available media files with configurable limits from config
+    available_music = get_available_music()
+    available_videos = get_available_videos()
     
     print_subheader("🎵 Available music files:")
     for i, music in enumerate(available_music, 1):

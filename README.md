@@ -20,6 +20,7 @@ DeepVideo2 is a Python-based video generation system that transforms YAML scenar
 - **Intelligent Workflow**: Generate only the number of scenarios needed to reach your target
 - **Voice Line Generation**: Create voice narration for each slide with emotion control
 - **Flexible Configuration**: Use project-specific configuration files in the configs/ directory
+- **Automatic Video Naming**: Generate descriptive filenames for background videos based on visual content
 
 ## Installation
 
@@ -72,6 +73,7 @@ deepvideo2/
 ├── make_voice_lines.py    # Script to generate voice lines for scenarios
 ├── make_videos.py         # Script to generate videos from scenarios and voice lines
 ├── clean.py               # Utility to reset or clean generated content
+├── name_videos.py         # Script to analyze and name video files based on content
 └── register_fonts.py      # Tool to register fonts with ImageMagick
 ```
 
@@ -103,6 +105,11 @@ video:
   imagemagick_binary: "path/to/magick.exe"
   background_music_volume: 0.2  # Volume multiplier for background music
   voice_narration_volume: 1.0   # Volume multiplier for voice narration
+
+# Media Options
+media_options:
+  music_files_count: 10  # Number of music files to show in scenario generation
+  video_files_count: 10  # Number of video files to show in scenario generation
 ```
 
 You can use the provided `configs/sample.yaml` as a template.
@@ -180,6 +187,26 @@ Options:
 - `-d, --hard`: Delete all generated content for the project
 - `-a, --all`: Delete ALL output directories (use with caution)
 
+### Naming Background Videos
+
+To automatically generate descriptive filenames for your background videos:
+
+```
+python name_videos.py [-m MODEL] [-f FRAMES]
+```
+
+This script:
+1. Extracts frames from each video in the lib/videos folder
+2. Analyzes each frame using an LLM to generate detailed descriptions
+3. Creates a descriptive filename based on the visual content and mood
+4. Renames the video files with the generated names
+
+Options:
+- `-m, --model`: Model name to use (default: gemma-3-4b-it)
+- `-f, --frames`: Number of frames to extract per video (default: 5)
+- `--min`: Minimum filename length (default: 32)
+- `--max`: Maximum filename length (default: 128)
+
 ## Troubleshooting
 
 ### Voice Lines Not Working
@@ -196,4 +223,24 @@ Options:
 
 ## License
 
-[Specify your license information here]
+MIT License
+
+Copyright (c) 2025 DeepVideo2 Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

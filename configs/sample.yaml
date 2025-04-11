@@ -30,6 +30,11 @@ video:
   voice_narration_volume: 1.0   # Volume multiplier for voice narration (0.0 to 1.0)
   use_consistent_font: true     # Use the same font for all slides in a scenario
 
+# Media Options
+media_options:
+  music_files_count: 10  # Number of music files to show in scenario generation
+  video_files_count: 10  # Number of video files to show in scenario generation
+
 # Emotions List
 emotions:
   - "happiness"
