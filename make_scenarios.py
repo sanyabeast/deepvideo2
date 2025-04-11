@@ -11,12 +11,22 @@ import argparse
 # ─────────────────────────────────────────────────────
 seed = random.randint(0, 1000000)
 default_model_name = "meta-llama-3.1-8b-instruct"
+emotions = [
+    "happiness",
+    "sadness",
+    "disgust",
+    "fear",
+    "surprise",
+    "anger",
+    "neutral"
+]
 
 # ─────────────────────────────────────────────────────
 # 📦 MODELS
 # ─────────────────────────────────────────────────────
 class ScenarioSlide(BaseModel):
     text: str
+    emotion: str
     duration_seconds: int
 
 class ScenarioDescription(BaseModel):
@@ -172,6 +182,7 @@ Create a **micro-story split into short slides** (like Instagram story frames) f
 - Each slide: **very short sentence or phrase**, 3–8 words
 - Each slide duration: **1 to 4 seconds** (max)
 - Max 8 slides
+- Each slide MUST be assigned ONE of these specific emotions: {", ".join(emotions)}
 
 📢 Style:
 - Ultra-punchy and emotionally charged
@@ -194,8 +205,8 @@ Create a **micro-story split into short slides** (like Instagram story frames) f
 {{
   "topic": "...",
   "slides": [
-    {{ "text": "Slide 1", "duration_seconds": 2 }},
-    {{ "text": "Slide 2", "duration_seconds": 3 }},
+    {{ "text": "Slide 1", "emotion": "one of the emotions from the list", "duration_seconds": 2 }},
+    {{ "text": "Slide 2", "emotion": "one of the emotions from the list", "duration_seconds": 3 }},
     ...
   ],
   "music": "Selected music filename from the list",
@@ -208,7 +219,7 @@ Create a **micro-story split into short slides** (like Instagram story frames) f
 
     print_subheader("🎬 Slides:")
     for idx, slide in enumerate(scenario["slides"], 1):
-        print(f"  {idx}. \"{slide["text"]}\" ({slide["duration_seconds"]}s)")
+        print(f"  {idx}. \"{slide['text']}\" - {slide['emotion']} ({slide['duration_seconds']}s)")
     
     print_subheader("🎵 Selected music:")
     print(f"  {scenario['music']}")

@@ -34,6 +34,7 @@ env/
 lib/
 scenarios/
 output/
+generated/
 
 # OS specific
 .DS_Store
