@@ -6,17 +6,29 @@ import shutil
 import argparse
 from pathlib import Path
 
+# Get the absolute path of the project directory
+PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
+
 # ─────────────────────────────────────────────────────
 # 🎲 CONFIGURATION
 # ─────────────────────────────────────────────────────
-ZONOS_TTS_SERVER = "http://localhost:5001/generate"
-VOICE_SAMPLE = "C:\\ML\\database\\voice\\ai1-STD-en-US-Kendra.mp3"
-SPEECH_RATE = "15"
-SCENARIOS_DIR = "scenarios"
-OUTPUT_DIR = "generated/voice_lines"
+def load_config():
+    """Load configuration from config.yaml file."""
+    config_path = os.path.join(PROJECT_DIR, "config.yaml")
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
 
-# Get the absolute path of the project directory
-PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
+# Load configuration
+CONFIG = load_config()
+
+# Voice generation settings
+ZONOS_TTS_SERVER = CONFIG["voice"]["zonos_tts_server"]
+VOICE_SAMPLE = CONFIG["voice"]["voice_sample"]
+SPEECH_RATE = CONFIG["voice"]["speech_rate"]
+
+# Directory settings
+SCENARIOS_DIR = CONFIG["directories"]["scenarios"]
+OUTPUT_DIR = CONFIG["directories"]["voice_lines"]
 
 # ─────────────────────────────────────────────────────
 # 🐍 UTILITIES

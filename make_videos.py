@@ -14,9 +14,24 @@ import emoji
 from PIL import ImageFont, Image, ImageDraw
 import numpy as np
 
+# Get the absolute path of the project directory
+PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# ─────────────────────────────────────────────────────
+# 🎲 CONFIGURATION
+# ─────────────────────────────────────────────────────
+def load_config():
+    """Load configuration from config.yaml file."""
+    config_path = os.path.join(PROJECT_DIR, "config.yaml")
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
+# Load configuration
+CONFIG = load_config()
+
 # Configure MoviePy to use ImageMagick
 # Path to where ImageMagick is installed on the system
-change_settings({"IMAGEMAGICK_BINARY": r"C:\Dev\ImageMagick\magick.exe"})
+change_settings({"IMAGEMAGICK_BINARY": CONFIG["video"]["imagemagick_binary"]})
 
 # Fix for PIL.Image.ANTIALIAS deprecation
 try:
@@ -31,12 +46,12 @@ except (ImportError, AttributeError):
 # 📂 DIRECTORIES
 # ─────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SCENARIOS_DIR = os.path.join(SCRIPT_DIR, 'scenarios')
-VIDEOS_DIR = os.path.join(SCRIPT_DIR, 'lib', 'videos')
-MUSIC_DIR = os.path.join(SCRIPT_DIR, 'lib', 'music')
-FONTS_DIR = os.path.join(SCRIPT_DIR, 'lib', 'fonts')
-EMOJI_FONTS_DIR = os.path.join(SCRIPT_DIR, 'lib', 'fonts_emoji')
-OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'output')
+SCENARIOS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["scenarios"])
+VIDEOS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["videos_dir"])
+MUSIC_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["music_dir"])
+FONTS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["fonts_dir"])
+EMOJI_FONTS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["emoji_fonts_dir"])
+OUTPUT_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["output_videos"])
 
 # Create output directory if it doesn't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -74,7 +89,7 @@ def get_system_emoji_font():
 
 def get_random_font():
     """Get a random font from the fonts directory."""
-    font_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib", "fonts")
+    font_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), CONFIG["directories"]["fonts_dir"])
     if not os.path.exists(font_dir):
         print(f"⚠️ Font directory not found: {font_dir}")
         return None
@@ -94,7 +109,7 @@ def get_random_font():
 
 def get_emoji_font():
     """Get a font for emoji rendering from the emoji fonts directory."""
-    emoji_font_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib", "fonts_emoji")
+    emoji_font_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), CONFIG["directories"]["emoji_fonts_dir"])
     if not os.path.exists(emoji_font_dir):
         print(f"⚠️ Emoji font directory not found: {emoji_font_dir}")
         return None

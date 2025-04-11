@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────
+# 🎲 GLOBAL CONFIGURATION
+# ─────────────────────────────────────────────────────
+
+# LLM Configuration
+llm:
+  default_model: "meta-llama-3.1-8b-instruct"
+  seed: 0  # Will be randomized at runtime if not specified
+
+# Voice Generation Configuration
+voice:
+  zonos_tts_server: "http://localhost:5001/generate"
+  voice_sample: "C:\\ML\\database\\voice\\ai1-STD-en-US-Kendra.mp3"
+  speech_rate: "15"
+
+# Video Generation Configuration
+video:
+  imagemagick_binary: "C:\\Dev\\ImageMagick\\magick.exe"
+
+# Emotions List
+emotions:
+  - "happiness"
+  - "sadness"
+  - "disgust"
+  - "fear"
+  - "surprise"
+  - "anger"
+  - "neutral"
+
+# Directory Configuration
+directories:
+  scenarios: "scenarios"
+  voice_lines: "generated/voice_lines"
+  output_videos: "generated/videos"
+  videos_dir: "lib/videos"
+  music_dir: "lib/music"
+  fonts_dir: "lib/fonts"
+  emoji_fonts_dir: "lib/fonts_emoji"

@@ -6,20 +6,31 @@ import os
 import re
 import argparse
 
+# Get the absolute path of the project directory
+PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
+
 # ─────────────────────────────────────────────────────
 # 🎲 CONFIGURATION
 # ─────────────────────────────────────────────────────
-seed = random.randint(0, 1000000)
-default_model_name = "meta-llama-3.1-8b-instruct"
-emotions = [
-    "happiness",
-    "sadness",
-    "disgust",
-    "fear",
-    "surprise",
-    "anger",
-    "neutral"
-]
+def load_config():
+    """Load configuration from config.yaml file."""
+    config_path = os.path.join(PROJECT_DIR, "config.yaml")
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
+# Load configuration
+CONFIG = load_config()
+
+# Set seed if not specified in config
+seed = CONFIG.get("llm", {}).get("seed", random.randint(0, 1000000))
+if seed == 0:  # If seed is 0, randomize it
+    seed = random.randint(0, 1000000)
+
+# LLM settings
+default_model_name = CONFIG["llm"]["default_model"]
+
+# Emotions list
+emotions = CONFIG["emotions"]
 
 # ─────────────────────────────────────────────────────
 # 📦 MODELS
