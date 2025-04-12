@@ -22,6 +22,10 @@ voice:
   normalization:
     target_db: -20.0  # Target dB level for audio normalization
     enabled: true     # Whether to automatically normalize generated voice lines
+  silence_trimming:
+    enabled: true     # Whether to trim silence from the end of voice lines
+    max_silence_sec: 1.0  # Maximum silence to keep at the end in seconds
+    threshold_db: -50  # Threshold in dB below which audio is considered silence
 
 # Video Generation Configuration
 video:
@@ -31,6 +35,13 @@ video:
   use_consistent_font: true     # Use the same font for all slides in a scenario
   intro_delay: 1.0              # Delay in seconds before the first slide appears
   outro_delay: 1.0              # Delay in seconds after the last slide before the video ends
+  emoji_enabled: true           # Whether to render emojis in videos (true = enabled, false = disabled)
+  emoji_font: "lib/noto_sans_emoji.ttf"  # Path to emoji font file (relative to project root)
+  emoji_scale: 1.5              # Scale factor for emoji size (1.0 = normal, 1.5 = 50% larger)
+  emoji_rotation:
+    enabled: true               # Whether to randomly rotate emojis
+    min_angle: -30              # Minimum rotation angle in degrees
+    max_angle: 30               # Maximum rotation angle in degrees
 
 # Media Options
 media_options:

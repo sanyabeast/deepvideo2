@@ -9,7 +9,7 @@ DeepVideo2 is a Python-based video generation system that transforms YAML scenar
 ## Features
 
 - **Text-to-Video Generation**: Convert YAML scenario files into complete videos with text overlays
-- **Emoji Support**: Proper rendering of emoji characters in video text
+- **Enhanced Emoji Support**: Render colorful emojis with configurable size, rotation, and positioning
 - **Custom Font Integration**: Use custom fonts for text rendering with proper ImageMagick integration
 - **Background Music**: Add music tracks to your videos with automatic matching
 - **Background Video**: Incorporate video backgrounds with proper sizing and positioning
@@ -17,11 +17,14 @@ DeepVideo2 is a Python-based video generation system that transforms YAML scenar
 - **Vertical/Horizontal Formats**: Support for both 9:16 (vertical) and 16:9 (horizontal) aspect ratios
 - **Project-Based Organization**: Organize all generated content by project name
 - **Audio Normalization**: Automatically normalize voice lines for consistent audio levels
+- **Silence Trimming**: Remove excess silence from the end of voice lines for better timing
+- **Text Preprocessing**: Clean up text before sending to TTS to improve voice quality
 - **Intelligent Workflow**: Generate only the number of scenarios needed to reach your target
 - **Voice Line Generation**: Create voice narration for each slide with emotion control
 - **Flexible Configuration**: Use project-specific configuration files in the configs/ directory
 - **Automatic Video Naming**: Generate descriptive filenames for background videos based on visual content
 - **Configurable Timing**: Set custom intro and outro delays for professional-looking videos
+- **Automatic Cleanup**: Remove temporary files after video generation
 
 ## Installation
 
@@ -78,6 +81,47 @@ deepvideo2/
 └── register_fonts.py      # Tool to register fonts with ImageMagick
 ```
 
+## Configuration Options
+
+The configuration file (`configs/sample.yaml` or your custom config) supports the following options:
+
+### Video Configuration
+
+```yaml
+video:
+  imagemagick_binary: "C:\\path\\to\\ImageMagick\\magick.exe"  # Path to ImageMagick binary
+  background_music_volume: 0.2  # Volume multiplier for background music (0.0 to 1.0)
+  voice_narration_volume: 1.0   # Volume multiplier for voice narration (0.0 to 1.0)
+  use_consistent_font: true     # Use the same font for all slides in a scenario
+  intro_delay: 1.0              # Delay in seconds before the first slide appears
+  outro_delay: 1.0              # Delay in seconds after the last slide before the video ends
+  emoji_enabled: true           # Whether to render emojis in videos
+  emoji_font: "lib/noto_sans_emoji.ttf"  # Path to emoji font file (relative to project root)
+  emoji_scale: 1.5              # Scale factor for emoji size (1.0 = normal, 1.5 = 50% larger)
+  emoji_rotation:
+    enabled: true               # Whether to randomly rotate emojis
+    min_angle: -30              # Minimum rotation angle in degrees
+    max_angle: 30               # Maximum rotation angle in degrees
+```
+
+### Voice Configuration
+
+```yaml
+voice:
+  zonos_tts_server: "http://localhost:5001/generate"  # URL of the Zonos TTS server
+  voice_samples:
+    - "C:\\path\\to\\voice\\sample1.mp3"  # Path to voice sample files
+    - "C:\\path\\to\\voice\\sample2.mp3"
+  speech_rate: "15"  # Speech rate for TTS (higher = faster)
+  normalization:
+    target_db: -20.0  # Target dB level for audio normalization
+    enabled: true     # Whether to automatically normalize generated voice lines
+  silence_trimming:
+    enabled: true     # Whether to trim silence from the end of voice lines
+    max_silence_sec: 1.0  # Maximum silence to keep at the end in seconds
+    threshold_db: -50  # Threshold in dB below which audio is considered silence
+```
+
 ## Usage
 
 ### Configuration
@@ -100,6 +144,10 @@ voice:
   normalization:
     target_db: -20.0  # Target dB level for audio normalization
     enabled: true     # Whether to automatically normalize generated voice lines
+  silence_trimming:
+    enabled: true     # Whether to trim silence from the end of voice lines
+    max_silence_sec: 1.0  # Maximum silence to keep at the end in seconds
+    threshold_db: -50  # Threshold in dB below which audio is considered silence
 
 # Video Generation Configuration
 video:
@@ -109,6 +157,13 @@ video:
   use_consistent_font: true     # Use the same font for all slides in a scenario
   intro_delay: 1.0              # Delay in seconds before the first slide appears
   outro_delay: 1.0              # Delay in seconds after the last slide before the video ends
+  emoji_enabled: true           # Whether to render emojis in videos
+  emoji_font: "lib/noto_sans_emoji.ttf"  # Path to emoji font file (relative to project root)
+  emoji_scale: 1.5              # Scale factor for emoji size (1.0 = normal, 1.5 = 50% larger)
+  emoji_rotation:
+    enabled: true               # Whether to randomly rotate emojis
+    min_angle: -30              # Minimum rotation angle in degrees
+    max_angle: 30               # Maximum rotation angle in degrees
 
 # Media Options
 media_options:

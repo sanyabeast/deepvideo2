@@ -21,11 +21,24 @@ PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
 # ─────────────────────────────────────────────────────
 # 🎲 CONFIGURATION
 # ─────────────────────────────────────────────────────
+def log(message, emoji=None):
+    """Standardized logging function with consistent emoji spacing.
+    
+    Args:
+        message: The message to log
+        emoji: Optional emoji to prefix the message
+    """
+    if emoji:
+        # Ensure there's a space after the emoji
+        print(f"{emoji} {message}")
+    else:
+        print(message)
+
 def load_config(config_path=None):
     """Load configuration from YAML file."""
     if config_path is None:
-        print("❌ Error: No config file specified.")
-        print("💡 Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml")
+        log("Error: No config file specified.", "❌")
+        log("Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml", "💡")
         sys.exit(1)
     
     try:
@@ -38,15 +51,15 @@ def load_config(config_path=None):
             config_filename = os.path.basename(config_path)
             config_name = os.path.splitext(config_filename)[0]
             config['project_name'] = config_name
-            print(f"ℹ️ Using config filename '{config_name}' as project name")
+            log(f"Using config filename '{config_name}' as project name", "ℹ️")
         
         return config
     except FileNotFoundError:
-        print(f"❌ Error: Config file not found: {config_path}")
-        print(f"💡 Hint: Make sure the config file exists. Example: configs/sample.yaml")
+        log(f"Error: Config file not found: {config_path}", "❌")
+        log(f"Hint: Make sure the config file exists. Example: configs/sample.yaml", "💡")
         sys.exit(1)
     except yaml.YAMLError as e:
-        print(f"❌ Error parsing config file: {e}")
+        log(f"Error parsing config file: {e}", "❌")
         sys.exit(1)
 
 # Global variables
@@ -122,7 +135,7 @@ def get_random_font():
     """Get a random font from the fonts directory."""
     font_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), CONFIG["directories"]["fonts_dir"])
     if not os.path.exists(font_dir):
-        print(f"⚠️ Font directory not found: {font_dir}")
+        log(f"Font directory not found: {font_dir}", "⚠️")
         return None
     
     font_files = []
@@ -130,24 +143,30 @@ def get_random_font():
         font_files.extend(glob.glob(os.path.join(font_dir, f"*{ext}")))
     
     if not font_files:
-        print("⚠️ No font files found in the fonts directory.")
+        log("No font files found in the fonts directory.", "⚠️")
         return None
     
     # Return a random font from the directory
     random_font = random.choice(font_files)
-    print(f"🔤 Selected random font: {os.path.basename(random_font)}")
+    log(f"Selected random font: {os.path.basename(random_font)}", "🔤")
     return random_font
 
 def get_emoji_font():
     """Get a font for emoji rendering."""
-    # Use hardcoded path to emoji font
-    emoji_font_path = os.path.join(PROJECT_DIR, "lib", "emoji.ttf")
+    # Use emoji font path from config if available, otherwise use default
+    if CONFIG and "video" in CONFIG and "emoji_font" in CONFIG["video"]:
+        emoji_font_path = os.path.join(PROJECT_DIR, CONFIG["video"]["emoji_font"])
+        log(f"Using emoji font from config: {CONFIG['video']['emoji_font']}", "🔤")
+    else:
+        # Fallback to default path
+        emoji_font_path = os.path.join(PROJECT_DIR, "lib", "noto_sans_emoji.ttf")
+        log(f"Using default emoji font: lib/noto_sans_emoji.ttf", "🔤")
     
     if not os.path.exists(emoji_font_path):
-        print(f"⚠️ Emoji font not found at: {emoji_font_path}")
+        log(f"Emoji font not found at: {emoji_font_path}", "⚠️")
         return None
     
-    print(f"🔤 Using emoji font: {emoji_font_path}")
+    log(f"Emoji font path: {emoji_font_path}", "🔤")
     return emoji_font_path
 
 def extract_emojis(text):
@@ -223,7 +242,7 @@ def find_unprocessed_scenarios():
     """Find all scenarios that haven't been processed yet."""
     # Check if scenarios directory exists
     if not os.path.exists(SCENARIOS_DIR):
-        print(f"❌ Scenarios directory not found: {SCENARIOS_DIR}")
+        log(f"Scenarios directory not found: {SCENARIOS_DIR}", "❌")
         return []
     
     # Get all YAML files in the scenarios directory
@@ -239,7 +258,7 @@ def find_unprocessed_scenarios():
                 if not scenario.get('has_video', False):
                     unprocessed_scenarios.append(scenario_path)
         except Exception as e:
-            print(f"⚠️ Error reading {os.path.basename(scenario_path)}: {str(e)}")
+            log(f"Error reading {os.path.basename(scenario_path)}: {str(e)}", "⚠️")
     
     return unprocessed_scenarios
 
@@ -268,11 +287,11 @@ def find_best_match(target, options):
     matches = difflib.get_close_matches(target, options, n=1, cutoff=0.1)
     
     if matches:
-        print(f"⚠️ Using approximate match for '{target}': '{matches[0]}'")
+        log(f"Using approximate match for '{target}': '{matches[0]}'", "⚠️")
         return matches[0]
     
     # If still no match found, return the first option as a fallback
-    print(f"⚠️ No close match found for '{target}'. Using first available option.")
+    log(f"No close match found for '{target}'. Using first available option.", "⚠️")
     return options[0]
 
 def format_text_for_display(text):
@@ -330,9 +349,23 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
     # Format text for better display
     formatted_text = format_text_for_display(text)
     
-    # Extract and remove emojis from the text itself
-    emojis = extract_emojis(formatted_text)
-    text_without_emojis = remove_emojis(formatted_text)
+    # Check if emoji rendering is enabled in config (default to true if not specified)
+    emoji_enabled = True
+    if CONFIG and "video" in CONFIG and "emoji_enabled" in CONFIG["video"]:
+        emoji_enabled = bool(CONFIG["video"]["emoji_enabled"])
+    
+    # If emoji rendering is disabled, clear the slide emoji
+    if not emoji_enabled:
+        slide_emoji = None
+        log("Emoji rendering is disabled in config", "🚫")
+    
+    # Extract and remove emojis from the text itself (only if emoji rendering is enabled)
+    if emoji_enabled:
+        emojis = extract_emojis(formatted_text)
+        text_without_emojis = remove_emojis(formatted_text)
+    else:
+        emojis = None
+        text_without_emojis = formatted_text
     
     # Get font paths
     if font is None:
@@ -340,16 +373,16 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
     else:
         regular_font_path = font
     
-    emoji_font_path = get_emoji_font()
+    emoji_font_path = get_emoji_font() if emoji_enabled else None
     
     if not regular_font_path:
-        print("⚠️ Using default font for regular text.")
+        log("Using default font for regular text.", "⚠️")
         regular_font = None
     else:
-        print(f"🔤 Using font for regular text: {os.path.basename(regular_font_path)}")
+        log(f"Using font for regular text: {os.path.basename(regular_font_path)}", "🔤")
         # Instead of using the path, use just the font name without extension
         font_name = os.path.splitext(os.path.basename(regular_font_path))[0]
-        print(f"🔤 Font name for MoviePy: {font_name}")
+        log(f"Font name for MoviePy: {font_name}", "🔤")
         regular_font = font_name
     
     # Scale font sizes based on quality
@@ -361,14 +394,14 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
     stroke_width = max(1, int(base_stroke_width * quality))
     
     # Debug font loading
-    print(f"📝 Font path: {regular_font_path}")
+    log(f"Font path: {regular_font_path}", "📝")
     
     # Test if the font can be loaded by PIL
     try:
         test_font = ImageFont.truetype(regular_font_path, main_font_size)
-        print(f"✅ Font loaded successfully by PIL: {test_font.getname()}")
+        log(f"Font loaded successfully by PIL: {test_font.getname()}", "✅")
     except Exception as e:
-        print(f"⚠️ PIL couldn't load font: {str(e)}")
+        log(f"PIL couldn't load font: {str(e)}", "⚠️")
     
     # Create the main text clip (without emojis)
     try:
@@ -384,9 +417,9 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
             stroke_color='black',
             stroke_width=stroke_width
         )
-        print("✅ Successfully created text clip with specified font")
+        log("Successfully created text clip with specified font", "✅")
     except Exception as e:
-        print(f"⚠️ Error using font name: {str(e)}. Trying with full path.")
+        log(f"Error using font name: {str(e)}. Trying with full path.", "⚠️")
         try:
             # If font name doesn't work, try with full path
             main_txt_clip = TextClip(
@@ -400,9 +433,9 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
                 stroke_color='black',
                 stroke_width=stroke_width
             )
-            print("✅ Successfully created text clip with font path")
+            log("Successfully created text clip with font path", "✅")
         except Exception as e:
-            print(f"⚠️ Error using font path: {str(e)}. Falling back to default.")
+            log(f"Error using font path: {str(e)}. Falling back to default.", "⚠️")
             # If all else fails, use default font
             main_txt_clip = TextClip(
                 txt=text_without_emojis,
@@ -424,96 +457,150 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
     # Create a list to hold all text clips
     text_clips = [main_txt_clip]
     
+    # If emoji rendering is disabled, return only the main text clip
+    if not emoji_enabled:
+        return text_clips
+    
+    # Get emoji scale factor from config (default to 1.5 if not specified)
+    emoji_scale = 1.5
+    if CONFIG and "video" in CONFIG and "emoji_scale" in CONFIG["video"]:
+        emoji_scale = float(CONFIG["video"]["emoji_scale"])
+        log(f"Using emoji scale from config: {emoji_scale}", "🔍")
+    
+    # Get emoji rotation settings from config
+    rotation_enabled = False
+    min_angle = -30
+    max_angle = 30
+    
+    if CONFIG and "video" in CONFIG and "emoji_rotation" in CONFIG["video"]:
+        rotation_config = CONFIG["video"]["emoji_rotation"]
+        if isinstance(rotation_config, dict):
+            if "enabled" in rotation_config:
+                rotation_enabled = bool(rotation_config["enabled"])
+            if "min_angle" in rotation_config:
+                min_angle = float(rotation_config["min_angle"])
+            if "max_angle" in rotation_config:
+                max_angle = float(rotation_config["max_angle"])
+    
+    log(f"Emoji rotation: {'enabled' if rotation_enabled else 'disabled'} (range: {min_angle}° to {max_angle}°)", "🔄")
+    
     # If there's a slide emoji and we have an emoji font, create a separate emoji clip using Pilmoji
     if slide_emoji and emoji_font_path:
-        print(f"🔤 Rendering slide emoji at top: {slide_emoji}")
-        print(f"🔤 Using emoji font: {os.path.basename(emoji_font_path)}")
+        log(f"Rendering slide emoji: '{slide_emoji}'", "🔤")
+        log(f"Using emoji font: {os.path.basename(emoji_font_path)}", "🔤")
         
-        emoji_font_size = int(150 * quality)  # Larger emoji font size
+        # Apply emoji scale factor to the base size (increased by 50% at scale 1.0)
+        base_emoji_size = 150  # Increased from 100 to 150 (50% larger)
+        emoji_font_size = int(base_emoji_size * quality * emoji_scale)
+        log(f"Emoji font size: {emoji_font_size} (scale: {emoji_scale})", "📏")
         
-        # Create emoji image using PIL
-        emoji_image = create_emoji_image(slide_emoji, emoji_font_path, emoji_font_size)
+        # Generate random rotation angle if enabled
+        rotation_angle = None
+        if rotation_enabled:
+            rotation_angle = random.uniform(min_angle, max_angle)
+            log(f"Random rotation angle: {rotation_angle:.1f}°", "🔄")
+        
+        # Create emoji image using Pilmoji
+        emoji_image = create_emoji_image(slide_emoji, emoji_font_path, emoji_font_size, rotation_angle)
         
         if emoji_image is not None:
             # Create an ImageClip from the emoji image
             slide_emoji_clip = ImageClip(emoji_image, transparent=True)
             
-            # Position slide emoji at the top of the screen
-            slide_emoji_clip = slide_emoji_clip.set_position(('center', video_size[1] * 0.15))
+            # Randomly choose top or bottom position (50/50 chance)
+            position_type = random.choice(['top', 'bottom'])
+            slide_emoji_clip = slide_emoji_clip.set_position(get_random_position(position_type, video_size))
             slide_emoji_clip = slide_emoji_clip.set_start(start_time)
             slide_emoji_clip = slide_emoji_clip.set_duration(duration)
             
             # Add to text clips list
             text_clips.append(slide_emoji_clip)
         else:
-            print(f"⚠️ Failed to create emoji image for '{slide_emoji}'")
+            log(f"Failed to create emoji image for '{slide_emoji}'", "⚠️")
     
     # If there are emojis in the text itself and we have an emoji font, create a separate emoji clip
     if emojis and emoji_font_path:
-        print(f"🔤 Rendering text emojis separately: {emojis}")
-        print(f"🔤 Using emoji font: {os.path.basename(emoji_font_path)}")
+        log(f"Rendering text emojis: '{emojis}'", "🔤")
+        log(f"Using emoji font: {os.path.basename(emoji_font_path)}", "🔤")
         
-        emoji_font_size = int(100 * quality)  # Scale emoji font size
+        # Apply emoji scale factor to the base size (increased by 50% at scale 1.0)
+        base_emoji_size = 120  # Increased from 80 to 120 (50% larger)
+        emoji_font_size = int(base_emoji_size * quality * emoji_scale)
         
-        # Create emoji image using PIL
-        emoji_image = create_emoji_image(emojis, emoji_font_path, emoji_font_size)
+        # Generate random rotation angle if enabled
+        rotation_angle = None
+        if rotation_enabled:
+            rotation_angle = random.uniform(min_angle, max_angle)
+            log(f"Random rotation angle for text emoji: {rotation_angle:.1f}°", "🔄")
+        
+        # Create emoji image using Pilmoji
+        emoji_image = create_emoji_image(emojis, emoji_font_path, emoji_font_size, rotation_angle)
         
         if emoji_image is not None:
             # Create an ImageClip from the emoji image
             emoji_txt_clip = ImageClip(emoji_image, transparent=True)
             
-            # Position emojis at the bottom of the screen
-            emoji_txt_clip = emoji_txt_clip.set_position(('center', video_size[1] * 0.85))
+            # Randomly choose position at top-right or bottom-right
+            position_type = random.choice(['top', 'bottom'])
+            if position_type == 'top':
+                # Position at top-right
+                emoji_txt_clip = emoji_txt_clip.set_position((video_size[0] * 0.75, video_size[1] * 0.2))
+            else:
+                # Position at bottom-right
+                emoji_txt_clip = emoji_txt_clip.set_position((video_size[0] * 0.75, video_size[1] * 0.8))
+            
             emoji_txt_clip = emoji_txt_clip.set_start(start_time)
             emoji_txt_clip = emoji_txt_clip.set_duration(duration)
             
             # Add to text clips list
             text_clips.append(emoji_txt_clip)
         else:
-            print(f"⚠️ Failed to create emoji image for '{emojis}'")
+            log(f"Failed to create emoji image for '{emojis}'", "⚠️")
     
     # Return all clips as a list
     return text_clips
 
-def create_emoji_image(emoji_text, font_path, font_size):
+def create_emoji_image(emoji_text, font_path, font_size, rotation_angle=None):
     """Create an image with colorful emoji using Pilmoji.
     
     Args:
         emoji_text: The emoji text to render (can be Unicode escape sequence like "\U0001F603")
         font_path: Path to the emoji font file
         font_size: Font size for the emoji
+        rotation_angle: Optional angle in degrees to rotate the emoji
         
     Returns:
         numpy array of the rendered emoji image with transparency
     """
     if not emoji_text or not font_path:
-        print(f"⚠️ Cannot create emoji image: {'No emoji text' if not emoji_text else 'No font path'}")
+        log(f"Cannot create emoji image: {'No emoji text' if not emoji_text else 'No font path'}", "⚠️")
         return None
     
     try:
-        print(f"🔍 Creating emoji image for: '{emoji_text}' (type: {type(emoji_text).__name__})")
+        log(f"Creating emoji image for: '{emoji_text}' (type: {type(emoji_text).__name__})", "🔍")
         
         # Convert Unicode escape sequences to actual emoji characters if needed
         # This handles cases where emoji is stored as "\U0001F603" in YAML
         if isinstance(emoji_text, str) and ('\\U' in emoji_text or '\\u' in emoji_text):
             try:
                 decoded_emoji = emoji_text.encode().decode('unicode_escape')
-                print(f"🔄 Decoded Unicode escape sequence: '{emoji_text}' → '{decoded_emoji}'")
+                log(f"Decoded Unicode escape sequence: '{emoji_text}' → '{decoded_emoji}'", "🔄")
                 emoji_text = decoded_emoji
             except Exception as e:
-                print(f"⚠️ Error decoding Unicode escape sequence: {str(e)}")
+                log(f"Error decoding Unicode escape sequence: {str(e)}", "⚠️")
         
         # Verify the emoji font exists
         if not os.path.exists(font_path):
-            print(f"⚠️ Emoji font not found: {font_path}")
+            log(f"Emoji font not found: {font_path}", "⚠️")
             return None
             
-        print(f"🔤 Loading emoji font: {os.path.basename(font_path)}")
+        log(f"Loading emoji font: {os.path.basename(font_path)}", "🔤")
         emoji_font = ImageFont.truetype(font_path, font_size)
         
-        # Create a larger canvas to ensure emoji fits
-        canvas_size = (font_size * 3, font_size * 3)
-        print(f"🖼️ Creating canvas of size: {canvas_size}")
+        # Create a larger canvas to ensure emoji fits, especially when rotated
+        padding_factor = 1.5  # Extra padding for rotation
+        canvas_size = (int(font_size * 3 * padding_factor), int(font_size * 3 * padding_factor))
+        log(f"Creating canvas of size: {canvas_size}", "🖼️")
         
         # Create a transparent image
         image = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
@@ -524,42 +611,77 @@ def create_emoji_image(emoji_text, font_path, font_size):
             try:
                 text_width, text_height = emoji_font.getsize(emoji_text)
                 position = ((canvas_size[0] - text_width) // 2, (canvas_size[1] - text_height) // 2)
-                print(f"📐 Emoji size: {text_width}x{text_height}, Position: {position}")
+                log(f"Emoji size: {text_width}x{text_height}, Position: {position}", "📐")
             except Exception as e:
-                print(f"⚠️ Error calculating text size: {str(e)}")
+                log(f"Error calculating text size: {str(e)}", "⚠️")
                 position = (canvas_size[0] // 4, canvas_size[1] // 4)
             
             # Draw the emoji with white color
-            print(f"🖌️ Drawing emoji with Pilmoji")
+            log(f"Drawing emoji with Pilmoji", "🖌️")
             pilmoji.text(position, emoji_text, (255, 255, 255), emoji_font)
+        
+        # Apply rotation if specified
+        if rotation_angle is not None and rotation_angle != 0:
+            log(f"Rotating emoji by {rotation_angle} degrees", "🔄")
+            # Use BICUBIC for smoother rotation
+            image = image.rotate(rotation_angle, resample=Image.BICUBIC, expand=True)
         
         # Trim transparent edges
         bbox = image.getbbox()
         if bbox:
-            print(f"✂️ Cropping image to bbox: {bbox}")
+            log(f"Cropping image to bbox: {bbox}", "✂️")
             image = image.crop(bbox)
-            print(f"🖼️ Final image size: {image.size}")
+            log(f"Final image size: {image.size}", "🖼️")
         else:
-            print("⚠️ No bounding box found (image might be empty)")
+            log("No bounding box found (image might be empty)", "⚠️")
         
         # Save a debug copy of the emoji image
         temp_dir = os.path.join(PROJECT_DIR, "temp")
         os.makedirs(temp_dir, exist_ok=True)
         debug_path = os.path.join(temp_dir, f"emoji_debug_{hash(emoji_text)}.png")
         image.save(debug_path)
-        print(f"💾 Saved emoji image to: {debug_path}")
+        log(f"Saved emoji image to: {debug_path}", "💾")
         
         # Convert to numpy array for MoviePy
         return np.array(image)
     except Exception as e:
-        print(f"❌ Error creating emoji image: {str(e)}")
+        log(f"Error creating emoji image: {str(e)}", "❌")
         import traceback
         traceback.print_exc()
         return None
 
+def get_random_position(position_type, video_size):
+    """Get a random position for an emoji based on the position type.
+    
+    Args:
+        position_type: Either 'top' or 'bottom'
+        video_size: Tuple of (width, height) of the video
+        
+    Returns:
+        Tuple of (x, y) position for the emoji
+    """
+    width, height = video_size
+    
+    # Define horizontal position range with more center bias (avoid edges)
+    # Instead of fixed positions, use a range with padding from edges
+    edge_padding = width * 0.25  # 25% padding from edges
+    x_pos = random.uniform(edge_padding, width - edge_padding)
+    
+    # Set vertical position based on position_type with more proximity to text
+    if position_type == 'top':
+        # Position in top third, but closer to the text (center)
+        y_pos = random.uniform(height * 0.15, height * 0.3)
+    else:  # bottom
+        # Position in bottom third, but closer to the text (center)
+        y_pos = random.uniform(height * 0.7, height * 0.85)
+    
+    position_name = f"{position_type}-{'left' if x_pos < width/3 else 'center' if x_pos < 2*width/3 else 'right'}"
+    log(f"Positioning emoji at {position_name}: ({x_pos:.0f}, {y_pos:.0f})", "📍")
+    return (x_pos, y_pos)
+
 def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voice_lines=True):
     """Generate a video from a scenario."""
-    print(f"📌 Topic: {scenario['topic']}")
+    log(f"Topic: {scenario['topic']}", "📌")
     
     # Get the scenario name (for finding voice lines)
     scenario_name = os.path.splitext(os.path.basename(scenario_path))[0]
@@ -576,15 +698,15 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
     music_file = find_best_match(requested_music, available_music)
     video_file = find_best_match(requested_video, available_videos)
     
-    print(f"🎵 Using music: {music_file}")
-    print(f"🎬 Using video: {video_file}")
+    log(f"Using music: {music_file}", "🎵")
+    log(f"Using video: {video_file}", "🎬")
     
     # Select a consistent font for this scenario if enabled in config
     use_consistent_font = CONFIG["video"].get("use_consistent_font", True)
     scenario_font = None
     if use_consistent_font:
         scenario_font = get_random_font()
-        print(f"🔤 Selected consistent font for scenario: {os.path.basename(scenario_font)}")
+        log(f"Selected consistent font for scenario: {os.path.basename(scenario_font)}", "🔤")
     
     # Load the video and audio clips
     video_clip = VideoFileClip(os.path.join(VIDEOS_DIR, video_file))
@@ -592,25 +714,25 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
     
     # Determine video orientation
     if vertical:
-        print("🔄 Creating vertical (9:16) video for TikTok/Reels...")
+        log("Creating vertical (9:16) video for TikTok/Reels...", "🔄")
         target_resolution = (1080, 1920)  # 9:16 aspect ratio
     else:
-        print("🔄 Creating horizontal (16:9) video...")
+        log("Creating horizontal (16:9) video...", "🔄")
         target_resolution = (1920, 1080)  # 16:9 aspect ratio
     
     # Apply quality scaling if less than 1.0
     if quality < 1.0:
-        print(f"🔍 Rendering at {int(quality * 100)}% quality for faster processing")
+        log(f"Rendering at {int(quality * 100)}% quality for faster processing", "🔍")
         # Scale the target resolution
         target_resolution = (int(target_resolution[0] * quality), int(target_resolution[1] * quality))
-        print(f"🔍 Scaled resolution: {target_resolution[0]}x{target_resolution[1]}")
+        log(f"Scaled resolution: {target_resolution[0]}x{target_resolution[1]}", "🔍")
     
     # Resize video to target resolution
     video_clip = resize_video(video_clip, target_resolution)
     
     # Create text clips for each slide
     slides = scenario['slides']
-    print(f"📝 Creating {len(slides)} slides")
+    log(f"Creating {len(slides)} slides", "📝")
     
     # Check for voice lines and calculate adjusted durations
     voice_lines_dir = VOICE_LINES_DIR
@@ -635,53 +757,53 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
                 voice_clip = AudioFileClip(voice_line_path)
                 # Add a small buffer (0.5s) to ensure text stays visible after narration
                 slide_duration = voice_clip.duration + 0.5
-                print(f"🔊 Found voice line for slide {i+1}: {slide_duration:.2f}s")
+                log(f"Found voice line for slide {i+1}: {slide_duration:.2f}s", "🔊")
             except Exception as e:
-                print(f"⚠️ Error reading voice line {voice_line_filename}: {str(e)}")
+                log(f"Error reading voice line {voice_line_filename}: {str(e)}", "⚠️")
                 slide_duration = slide['duration_seconds']
         else:
             # Use original duration from scenario
             slide_duration = slide['duration_seconds']
-            print(f"📝 No voice line for slide {i+1}, using original duration: {slide_duration}s")
+            log(f"No voice line for slide {i+1}, using original duration: {slide_duration}s", "📝")
         
         # Add slide duration to content duration
         content_duration += slide_duration
     
     # Calculate total video duration including intro and outro delays
     total_duration = content_duration + intro_delay + outro_delay
-    print(f"⏱️ Content duration: {content_duration:.2f}s")
-    print(f"⏱️ Adding intro delay: {intro_delay:.1f}s")
-    print(f"⏱️ Adding outro delay: {outro_delay:.1f}s")
-    print(f"⏱️ Total video duration: {total_duration:.2f}s")
+    log(f"Content duration: {content_duration:.2f}s", "⏱️")
+    log(f"Adding intro delay: {intro_delay:.1f}s", "⏱️")
+    log(f"Adding outro delay: {outro_delay:.1f}s", "⏱️")
+    log(f"Total video duration: {total_duration:.2f}s", "⏱️")
     
     # Select a random segment from the video if it's longer than needed
     if video_clip.duration > total_duration:
         max_start_time = video_clip.duration - total_duration
         start_time = random.uniform(0, max_start_time)
-        print(f"🎬 Using video segment starting at {start_time:.2f}s")
+        log(f"Using video segment starting at {start_time:.2f}s", "🎬")
         video_clip = video_clip.subclip(start_time, start_time + total_duration)
     else:
         # If video is shorter, loop it
         video_clip = video_clip.loop(duration=total_duration)
-        print(f"🔄 Looping video to reach {total_duration:.2f}s duration")
+        log(f"Looping video to reach {total_duration:.2f}s duration", "🔄")
     
     # Select a random segment from the music if it's longer than needed
     if music_clip.duration > total_duration:
         max_start_time = music_clip.duration - total_duration
         start_time = random.uniform(0, max_start_time)
-        print(f"🎵 Using music segment starting at {start_time:.2f}s")
+        log(f"Using music segment starting at {start_time:.2f}s", "🎵")
         music_clip = music_clip.subclip(start_time, start_time + total_duration)
     else:
         # If music is shorter, loop it
         music_clip = music_clip.loop(duration=total_duration)
-        print(f"🔄 Looping music to reach {total_duration:.2f}s duration")
+        log(f"Looping music to reach {total_duration:.2f}s duration", "🔄")
     
     # Set volume levels from config
     background_music_volume = CONFIG["video"].get("background_music_volume", 0.5)
     
     # Adjust music volume
     music_clip = music_clip.volumex(background_music_volume)
-    print(f"🔊 Set background music volume to {background_music_volume:.1f}")
+    log(f"Set background music volume to {background_music_volume:.1f}", "🔊")
     
     # Create a list to hold all clips (video and text)
     all_clips = [video_clip]
@@ -709,14 +831,14 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
                 audio_clips.append(voice_clip)
                 # Add a small buffer (0.5s) to ensure text stays visible after narration
                 slide_duration = voice_clip.duration + 0.5
-                print(f"🔊 Using voice line for slide {i+1}: {slide_duration:.2f}s starting at {current_time:.2f}s")
+                log(f"Using voice line for slide {i+1}: {slide_duration:.2f}s starting at {current_time:.2f}s", "🔊")
             except Exception as e:
-                print(f"⚠️ Error reading voice line {voice_line_filename}: {str(e)}")
+                log(f"Error reading voice line {voice_line_filename}: {str(e)}", "⚠️")
                 slide_duration = slide['duration_seconds']
         else:
             # Use original duration from scenario
             slide_duration = slide['duration_seconds']
-            print(f"📝 No voice line for slide {i+1}, using original duration: {slide_duration}s")
+            log(f"No voice line for slide {i+1}, using original duration: {slide_duration}s", "📝")
         
         # Create text clips for this slide using the consistent font if enabled
         text_clips = create_text_clip(slide['text'], slide_duration, current_time, target_resolution, quality, scenario_font, slide.get('emoji'))
@@ -730,7 +852,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
     
     # Combine all audio tracks
     if len(audio_clips) > 1:
-        print(f"🔊 Combining {len(audio_clips)} audio tracks ({len(audio_clips)-1} voice lines)")
+        log(f"Combining {len(audio_clips)} audio tracks ({len(audio_clips)-1} voice lines)", "🔊")
         final_audio = CompositeAudioClip(audio_clips)
         final_clip = final_clip.set_audio(final_audio)
     else:
@@ -742,7 +864,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
     output_path = os.path.join(OUTPUT_DIR, output_filename)
     
     # Render the video
-    print(f"🔄 Rendering video to {output_path}...")
+    log(f"Rendering video to {output_path}...", "🔄")
     final_clip.write_videofile(output_path, fps=30, codec='libx264', audio_codec='aac')
     
     # Close the clips to free up resources
@@ -756,7 +878,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
     
     final_clip.close()
     
-    print(f"✅ Video created successfully: {output_path}")
+    log(f"Video created successfully: {output_path}", "✅")
     
     return output_path
 
@@ -774,12 +896,12 @@ def process_scenario(scenario_path, vertical=True, force=False, quality=1.0, use
         with open(scenario_path, 'r', encoding='utf-8') as file:
             scenario = yaml.safe_load(file)
         
-        print(f"📌 Topic: {scenario['topic']}")
+        log(f"Topic: {scenario['topic']}", "📌")
         
         # Check if the scenario has already been processed
         if not force and scenario.get('has_video', False):
-            print(f"⚠️ Scenario has already been processed: {scenario_path}")
-            print(f"   Use -f to process it anyway.")
+            log(f"Scenario has already been processed: {scenario_path}", "⚠️")
+            log(f"   Use -f to process it anyway.", "💡")
             return False
         
         # Generate the video
@@ -790,38 +912,47 @@ def process_scenario(scenario_path, vertical=True, force=False, quality=1.0, use
             scenario['has_video'] = True
             with open(scenario_path, 'w', encoding='utf-8') as file:
                 yaml.dump(scenario, file, default_flow_style=False)
-            print(f"✅ Scenario marked as processed: {scenario_path}")
-            print(f"🎉 Video generation complete: {output_path}")
+            log(f"Scenario marked as processed: {scenario_path}", "✅")
+            log(f"Video generation complete: {output_path}", "🎉")
             return True
         else:
-            print(f"❌ Failed to generate video for {scenario_path}")
+            log(f"Failed to generate video for {scenario_path}", "❌")
             return False
     except Exception as e:
-        print(f"❌ Error processing scenario {scenario_path}: {str(e)}")
+        log(f"Error processing scenario {scenario_path}: {str(e)}", "❌")
         return False
 
-def cleanup_temp_mp4_files():
-    """Remove any temporary MP4 files from the root directory."""
-    print("\n🧹 Cleaning up temporary MP4 files from root directory...")
+def cleanup_temp_files():
+    """Remove temporary files created during video generation."""
+    log("\nCleaning up temporary files...", "🧹")
     
-    # Get all MP4 files in the root directory
+    # Clean up temporary MP4 files from root directory
     root_mp4_files = glob.glob(os.path.join(PROJECT_DIR, "*.mp4"))
-    
-    if not root_mp4_files:
-        print("✅ No temporary MP4 files found.")
-        return
-    
-    # Remove each file
-    removed_count = 0
+    mp4_count = 0
     for mp4_file in root_mp4_files:
         try:
             os.remove(mp4_file)
-            print(f"  ✅ Removed: {os.path.basename(mp4_file)}")
-            removed_count += 1
+            log(f"  Removed MP4: {os.path.basename(mp4_file)}", "✅")
+            mp4_count += 1
         except Exception as e:
-            print(f"  ❌ Failed to remove {os.path.basename(mp4_file)}: {str(e)}")
+            log(f"  Failed to remove {os.path.basename(mp4_file)}: {str(e)}", "❌")
     
-    print(f"🧹 Cleanup complete. Removed {removed_count} temporary MP4 file(s).")
+    # Clean up temporary emoji images from temp directory
+    temp_dir = os.path.join(PROJECT_DIR, "temp")
+    if os.path.exists(temp_dir):
+        emoji_images = glob.glob(os.path.join(temp_dir, "emoji_debug_*.png"))
+        emoji_count = 0
+        for emoji_image in emoji_images:
+            try:
+                os.remove(emoji_image)
+                emoji_count += 1
+            except Exception as e:
+                log(f"  Failed to remove {os.path.basename(emoji_image)}: {str(e)}", "❌")
+        
+        if emoji_count > 0:
+            log(f"  Removed {emoji_count} temporary emoji image(s)", "✅")
+    
+    log(f"Cleanup complete. Removed {mp4_count} MP4 file(s) and {emoji_count} emoji image(s).", "🧹")
 
 def parse_args():
     """Parse command line arguments."""
@@ -867,7 +998,7 @@ def main():
     # Get project name
     project_name = CONFIG.get("project_name")
     
-    print(f"\n🚀 Starting {project_name} video generation")
+    log(f"\nStarting {project_name} video generation", "🚀")
     
     # Create output directory if it doesn't exist
     if not os.path.exists(OUTPUT_DIR):
@@ -880,14 +1011,14 @@ def main():
         # Process a specific scenario
         scenario_path = args.scenario
         if not os.path.exists(scenario_path):
-            print(f"❌ Scenario file not found: {scenario_path}")
+            log(f"Scenario file not found: {scenario_path}", "❌")
             return
         
         # Process the scenario, with force flag if specified
         success = process_scenario(scenario_path, vertical, args.force, args.quality, not args.skip_voices)
         
         if success:
-            print(f"🎉 Video generation complete: {scenario_path}")
+            log(f"Video generation complete: {scenario_path}", "🎉")
     else:
         # Process the specified number of videos
         videos_generated = 0
@@ -897,25 +1028,25 @@ def main():
         if max_videos == -1:
             unprocessed_scenarios = find_unprocessed_scenarios()
             if not unprocessed_scenarios:
-                print("🏁 No unprocessed scenarios available.")
+                log("No unprocessed scenarios available.", "🏁")
                 return
             
-            print(f"🎯 Found {len(unprocessed_scenarios)} unprocessed scenarios")
+            log(f"Found {len(unprocessed_scenarios)} unprocessed scenarios", "🎯")
             
             for scenario_path in unprocessed_scenarios:
-                print(f"🎯 Processing scenario: {os.path.basename(scenario_path)}")
+                log(f"Processing scenario: {os.path.basename(scenario_path)}", "🎯")
                 
                 # Process the scenario
                 success = process_scenario(scenario_path, vertical, quality=args.quality, use_voice_lines=not args.skip_voices)
                 
                 if success:
                     videos_generated += 1
-                    print(f"📊 Progress: {videos_generated}/{len(unprocessed_scenarios)} videos generated")
+                    log(f"Progress: {videos_generated}/{len(unprocessed_scenarios)} videos generated", "📊")
             
             if videos_generated > 0:
-                print(f"✅ Successfully generated {videos_generated} videos.")
+                log(f"Successfully generated {videos_generated} videos.", "✅")
             else:
-                print("❌ No videos were generated.")
+                log("No videos were generated.", "❌")
         else:
             # Process a specific number of random scenarios
             while True:
@@ -928,30 +1059,30 @@ def main():
                 
                 # If no more scenarios to process, break
                 if not scenario_path:
-                    print("🏁 No more unprocessed scenarios available.")
+                    log("No more unprocessed scenarios available.", "🏁")
                     break
                 
-                print(f"🎯 Selected scenario: {os.path.basename(scenario_path)}")
+                log(f"Selected scenario: {os.path.basename(scenario_path)}", "🎯")
                 
                 # Process the scenario
                 success = process_scenario(scenario_path, vertical, quality=args.quality, use_voice_lines=not args.skip_voices)
                 
                 if success:
                     videos_generated += 1
-                    print(f"📊 Progress: {videos_generated}/{max_videos if max_videos > 0 else 'all'} videos generated")
+                    log(f"Progress: {videos_generated}/{max_videos if max_videos > 0 else 'all'} videos generated", "📊")
             
             if videos_generated > 0:
-                print(f"✅ Successfully generated {videos_generated} videos.")
+                log(f"Successfully generated {videos_generated} videos.", "✅")
             else:
-                print("❌ No videos were generated.")
+                log("No videos were generated.", "❌")
 
-    # Clean up temporary MP4 files
-    cleanup_temp_mp4_files()
+    # Clean up temporary files
+    cleanup_temp_files()
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n⚠️ Process interrupted by user (Ctrl+C)")
-        print("🛑 Exiting gracefully...")
+        log("\nProcess interrupted by user (Ctrl+C)", "⚠️")
+        log("Exiting gracefully...", "🛑")
         sys.exit(130)  # Standard exit code for SIGINT
