@@ -99,8 +99,8 @@ def get_existing_topics():
 def get_available_music(limit=None):
     """Get a list of available music files."""
     if limit is None:
-        # Get the limit from config, default to 10 if not specified
-        limit = CONFIG.get("media_options", {}).get("music_files_count", 10)
+        # Get the limit from config, default to 16 if not specified
+        limit = CONFIG.get("media_options", {}).get("music_files_count", 16)
     
     music_dir = os.path.join("lib", "music")
     all_music = [f for f in os.listdir(music_dir) if os.path.isfile(os.path.join(music_dir, f))]
@@ -112,8 +112,8 @@ def get_available_music(limit=None):
 def get_available_videos(limit=None):
     """Get a list of available video files."""
     if limit is None:
-        # Get the limit from config, default to 10 if not specified
-        limit = CONFIG.get("media_options", {}).get("video_files_count", 10)
+        # Get the limit from config, default to 16 if not specified
+        limit = CONFIG.get("media_options", {}).get("video_files_count", 16)
     
     videos_dir = os.path.join("lib", "videos")
     all_videos = [f for f in os.listdir(videos_dir) if os.path.isfile(os.path.join(videos_dir, f))]

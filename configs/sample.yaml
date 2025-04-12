@@ -34,8 +34,8 @@ video:
 
 # Media Options
 media_options:
-  music_files_count: 10  # Number of music files to show in scenario generation
-  video_files_count: 10  # Number of video files to show in scenario generation
+  music_files_count: 16  # Number of music files to show in scenario generation
+  video_files_count: 16  # Number of video files to show in scenario generation
 
 # Emotions List
 emotions:

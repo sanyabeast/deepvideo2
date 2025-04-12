@@ -391,7 +391,7 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
             color='white',
             font=regular_font,
             align='center',
-            method='caption',
+            method='label',  # Changed from 'caption' to 'label' to respect line breaks
             size=(video_size[0] * 0.8, None),
             stroke_color='black',
             stroke_width=stroke_width
@@ -407,7 +407,7 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
                 color='white',
                 font=regular_font_path,  # Try with full path
                 align='center',
-                method='caption',
+                method='label',  # Changed from 'caption' to 'label' to respect line breaks
                 size=(video_size[0] * 0.8, None),
                 stroke_color='black',
                 stroke_width=stroke_width
@@ -422,7 +422,7 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
                 color='white',
                 font=None,
                 align='center',
-                method='caption',
+                method='label',  # Changed from 'caption' to 'label' to respect line breaks
                 size=(video_size[0] * 0.8, None),
                 stroke_color='black',
                 stroke_width=stroke_width
