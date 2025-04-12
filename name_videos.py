@@ -11,7 +11,7 @@ This script processes videos in the lib/videos folder by:
 
 Arguments:
     -m, --model MODEL       Model name to use for image analysis (default: gemma-3-4b-it)
-    -f, --frames FRAMES     Number of frames to extract per video (default: 10)
+    -f, --frames FRAMES     Number of frames to extract per video (default: 8)
     --min MIN_LENGTH        Minimum filename length (default: 32)
     --max MAX_LENGTH        Maximum filename length (default: 128)
 """
@@ -52,7 +52,7 @@ def is_video_file(file_path):
     return mime is not None and mime.startswith("video")
 
 
-def extract_frames(video_path, num_frames=10):
+def extract_frames(video_path, num_frames=8):
     """Extract frames from a video file at different parts."""
     print(f"🎬 Extracting {num_frames} frames from: {os.path.basename(video_path)}")
     
@@ -216,7 +216,7 @@ def main():
     """Main function."""
     parser = argparse.ArgumentParser(description="Process videos in lib/videos folder using LLM for naming.")
     parser.add_argument("-m", "--model", default="gemma-3-4b-it", help="Model name to use for image analysis (default: gemma-3-4b-it)")
-    parser.add_argument("-f", "--frames", type=int, default=10, help="Number of frames to extract per video (default: 10)")
+    parser.add_argument("-f", "--frames", type=int, default=8, help="Number of frames to extract per video (default: 8)")
     parser.add_argument("--min", "--min-length", type=int, default=32, help="Minimum filename length (default: 32)")
     parser.add_argument("--max", "--max-length", type=int, default=128, help="Maximum filename length (default: 128)")
     args = parser.parse_args()
