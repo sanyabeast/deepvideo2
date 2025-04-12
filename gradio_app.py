@@ -292,8 +292,8 @@ def create_ui():
                         )
                         frames_count = gr.Slider(
                             minimum=1, 
-                            maximum=10, 
-                            value=5, 
+                            maximum=20, 
+                            value=10, 
                             step=1, 
                             label="Frames per Video",
                             info="Number of frames to extract from each video"

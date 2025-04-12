@@ -8,6 +8,12 @@ This script processes videos in the lib/videos folder by:
 2. Getting descriptions for each frame using an LLM
 3. Generating a summary name for the video based on the frame descriptions
 4. Renaming the video file with the generated name
+
+Arguments:
+    -m, --model MODEL       Model name to use for image analysis (default: gemma-3-4b-it)
+    -f, --frames FRAMES     Number of frames to extract per video (default: 10)
+    --min MIN_LENGTH        Minimum filename length (default: 32)
+    --max MAX_LENGTH        Maximum filename length (default: 128)
 """
 
 import argparse
@@ -46,7 +52,7 @@ def is_video_file(file_path):
     return mime is not None and mime.startswith("video")
 
 
-def extract_frames(video_path, num_frames=5):
+def extract_frames(video_path, num_frames=10):
     """Extract frames from a video file at different parts."""
     print(f"🎬 Extracting {num_frames} frames from: {os.path.basename(video_path)}")
     
@@ -61,14 +67,19 @@ def extract_frames(video_path, num_frames=5):
     # Calculate frame positions (distributed across the video)
     duration = clip.duration
     
-    # Get frames from different parts of the video (start, 25%, 50%, 75%, end)
-    frame_times = [
-        duration * 0.1,           # Near the beginning
-        duration * 0.25,          # First quarter
-        duration * 0.5,           # Middle
-        duration * 0.75,          # Third quarter
-        duration * 0.9            # Near the end
-    ]
+    # Generate evenly distributed frame times
+    # Avoid the very beginning and end (first and last 5% of the video)
+    start_percent = 0.05
+    end_percent = 0.95
+    usable_duration = end_percent - start_percent
+    
+    if num_frames == 1:
+        # Just use the middle frame
+        frame_times = [duration * 0.5]
+    else:
+        # Calculate evenly spaced intervals
+        step = usable_duration / (num_frames - 1)
+        frame_times = [duration * (start_percent + step * i) for i in range(num_frames)]
     
     frame_paths = []
     for i, time in enumerate(frame_times):
@@ -102,14 +113,14 @@ def get_frame_descriptions(model, frame_paths):
             
             # Create the prompt for the LLM
             prompt = """
-                Describe this image for use in a video filename. Focus on **what is clearly visible** in the frame and how it feels. Include:
+                Describe the visual contents of this image with **objective, descriptive detail**. Focus on what is actually visible and how it would likely feel to a viewer. Include:
 
-                - The most obvious visual subject or scene (e.g. mountain, crowded street, stormy sea, close-up of food)
-                - Mood or emotional tone (e.g. tense, peaceful, chaotic)
-                - Lighting and color scheme (e.g. dark blue night, bright pastel tones)
-                - Time of day or weather if relevant
+                - The main subject or environment (e.g. forest trail, empty hallway, abandoned playground)
+                - The **atmosphere or emotional tone**, even if it's unsettling or eerie (e.g. cheerful, tense, creepy, surreal, depressing, dreamlike)
+                - Color and lighting conditions (e.g. warm sunlight, cold grey tones, low visibility)
+                - Weather, time of day, or visual effects if relevant
 
-                Write in **1 detailed sentence** that clearly helps someone identify this image at a glance. Be very descriptive but **avoid metaphors or poetic language**. Do NOT repeat similar ideas from other frames. This will be used for **file naming**, so keep the language practical and visual.
+                Write **1 complete sentence**. Use neutral language — no exaggeration, no assumptions about beauty or meaning. **Do not soften or reframe dark or disturbing content**. Avoid metaphor, emojis, and opinions. This will be used to describe background visuals for file naming, so be precise and literal.
                 """
             
             # Get the description from the LLM
@@ -205,7 +216,7 @@ def main():
     """Main function."""
     parser = argparse.ArgumentParser(description="Process videos in lib/videos folder using LLM for naming.")
     parser.add_argument("-m", "--model", default="gemma-3-4b-it", help="Model name to use for image analysis (default: gemma-3-4b-it)")
-    parser.add_argument("-f", "--frames", type=int, default=5, help="Number of frames to extract per video (default: 5)")
+    parser.add_argument("-f", "--frames", type=int, default=10, help="Number of frames to extract per video (default: 10)")
     parser.add_argument("--min", "--min-length", type=int, default=32, help="Minimum filename length (default: 32)")
     parser.add_argument("--max", "--max-length", type=int, default=128, help="Maximum filename length (default: 128)")
     args = parser.parse_args()

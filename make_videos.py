@@ -519,16 +519,13 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     voice_lines_dir = VOICE_LINES_DIR
     
     # Calculate total video duration with adjusted slide durations
-    video_duration = 0
+    content_duration = 0
     
     # Get intro and outro delays from config (default to 1.0 second each if not specified)
     intro_delay = CONFIG["video"].get("intro_delay", 1.0)
     outro_delay = CONFIG["video"].get("outro_delay", 1.0)
     
-    # Add intro delay to total duration
-    video_duration += intro_delay
-    print(f"⏱️ Adding intro delay: {intro_delay:.1f}s")
-    
+    # Calculate content duration (without intro/outro delays)
     for i, slide in enumerate(slides):
         # Check if voice line exists for this slide
         slide_id = f"slide_{i+1:02d}"
@@ -539,10 +536,6 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
             # Load voice line and set its start time
             try:
                 voice_clip = AudioFileClip(voice_line_path)
-                # Set volume for voice clip
-                voice_clip = voice_clip.volumex(CONFIG["video"].get("voice_narration_volume", 1.0))
-                # Set the start time for this voice clip
-                voice_clip = voice_clip.set_start(current_time)
                 # Add a small buffer (0.5s) to ensure text stays visible after narration
                 slide_duration = voice_clip.duration + 0.5
                 print(f"🔊 Found voice line for slide {i+1}: {slide_duration:.2f}s")
@@ -554,32 +547,37 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
             slide_duration = slide['duration_seconds']
             print(f"📝 No voice line for slide {i+1}, using original duration: {slide_duration}s")
         
-        # Add slide duration to total video duration
-        video_duration += slide_duration
+        # Add slide duration to content duration
+        content_duration += slide_duration
     
-    # Add outro delay to total duration
-    video_duration += outro_delay
+    # Calculate total video duration including intro and outro delays
+    total_duration = content_duration + intro_delay + outro_delay
+    print(f"⏱️ Content duration: {content_duration:.2f}s")
+    print(f"⏱️ Adding intro delay: {intro_delay:.1f}s")
     print(f"⏱️ Adding outro delay: {outro_delay:.1f}s")
+    print(f"⏱️ Total video duration: {total_duration:.2f}s")
     
     # Select a random segment from the video if it's longer than needed
-    if video_clip.duration > video_duration:
-        max_start_time = video_clip.duration - video_duration
+    if video_clip.duration > total_duration:
+        max_start_time = video_clip.duration - total_duration
         start_time = random.uniform(0, max_start_time)
         print(f"🎬 Using video segment starting at {start_time:.2f}s")
-        video_clip = video_clip.subclip(start_time, start_time + video_duration)
+        video_clip = video_clip.subclip(start_time, start_time + total_duration)
     else:
         # If video is shorter, loop it
-        video_clip = video_clip.loop(duration=video_duration)
+        video_clip = video_clip.loop(duration=total_duration)
+        print(f"🔄 Looping video to reach {total_duration:.2f}s duration")
     
     # Select a random segment from the music if it's longer than needed
-    if music_clip.duration > video_duration:
-        max_start_time = music_clip.duration - video_duration
+    if music_clip.duration > total_duration:
+        max_start_time = music_clip.duration - total_duration
         start_time = random.uniform(0, max_start_time)
         print(f"🎵 Using music segment starting at {start_time:.2f}s")
-        music_clip = music_clip.subclip(start_time, start_time + video_duration)
+        music_clip = music_clip.subclip(start_time, start_time + total_duration)
     else:
         # If music is shorter, loop it
-        music_clip = music_clip.loop(duration=video_duration)
+        music_clip = music_clip.loop(duration=total_duration)
+        print(f"🔄 Looping music to reach {total_duration:.2f}s duration")
     
     # Set volume levels from config
     background_music_volume = CONFIG["video"].get("background_music_volume", 0.5)
@@ -614,7 +612,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
                 audio_clips.append(voice_clip)
                 # Add a small buffer (0.5s) to ensure text stays visible after narration
                 slide_duration = voice_clip.duration + 0.5
-                print(f"🔊 Found voice line for slide {i+1}: {slide_duration:.2f}s")
+                print(f"🔊 Using voice line for slide {i+1}: {slide_duration:.2f}s starting at {current_time:.2f}s")
             except Exception as e:
                 print(f"⚠️ Error reading voice line {voice_line_filename}: {str(e)}")
                 slide_duration = slide['duration_seconds']
@@ -631,7 +629,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
         current_time += slide_duration
     
     # Compose the final video
-    final_clip = CompositeVideoClip(all_clips)
+    final_clip = CompositeVideoClip(all_clips, size=target_resolution)
     
     # Combine all audio tracks
     if len(audio_clips) > 1:

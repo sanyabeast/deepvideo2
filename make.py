@@ -23,6 +23,7 @@ def parse_args():
     parser.add_argument("-c", "--config", required=True, help="Path to the config file")
     parser.add_argument("-n", "--num", type=int, default=1, help="Target number of scenarios/videos to have (default: 1)")
     parser.add_argument("-q", "--quality", type=float, default=1.0, help="Video quality factor (0.0-1.0, default: 1.0)")
+    parser.add_argument("-m", "--model", type=str, help="Custom LLM model to use (overrides config)")
     
     return parser.parse_args()
 
@@ -112,6 +113,8 @@ def main():
     print(f"Target number of videos: {args.num}")
     print(f"Existing scenarios: {existing_count}")
     print(f"Quality factor: {args.quality}")
+    if args.model:
+        print(f"Using custom model: {args.model}")
     print(f"{'='*70}\n")
     
     # Step 1: Generate scenarios (only if needed)
@@ -120,6 +123,9 @@ def main():
     if scenarios_to_generate > 0:
         print(f"Generating {scenarios_to_generate} new scenarios to reach target of {args.num}")
         scenario_args = ["-c", args.config, "-n", str(scenarios_to_generate)]
+        # Add model parameter if specified
+        if args.model:
+            scenario_args.extend(["-m", args.model])
         exit_code = run_script("make_scenarios.py", scenario_args)
         if exit_code != 0:
             print("❌ Failed to generate scenarios. Stopping.")
