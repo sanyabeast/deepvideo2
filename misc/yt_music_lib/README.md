@@ -84,3 +84,5 @@ const formatted = `NAME_${name}_GENRE_${genre}_MOOD_${mood}_ARTIST_${artist}`;
 ## Integration with DeepVideo2
 
 This script is designed to work seamlessly with the DeepVideo2 project, which uses music files with specific naming conventions to enable better selection based on genre and mood during video generation.
+
+After downloading music files with properly formatted names, you can use the `name_music.py` script in the DeepVideo2 root directory to ensure all music files follow the same naming convention.
