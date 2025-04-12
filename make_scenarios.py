@@ -58,6 +58,7 @@ class ScenarioSlide(BaseModel):
     has_emoji: bool
     emoji: str
     duration_seconds: int
+    background_image_description: str = ""
 
 class ScenarioDescription(BaseModel):
     topic: str
@@ -93,17 +94,13 @@ def clean_text(text: str):
     - Basic punctuation (,.?!-'":+=)
     - Spaces
     
-    It also intelligently handles apostrophes:
-    - Preserves apostrophes in contractions (don't, can't, etc.)
-    - Converts single quotes used for quotation ('like this') to double quotes
+    It also normalizes all quotes to single quotes for consistency.
     """
     # Replace ellipsis and other common special characters with their simple equivalents
-    text = text.replace('\u2026', '...').replace('\u2019', "'").replace('\u201c', '"').replace('\u201d', '"')
+    text = text.replace('\u2026', '...').replace('\u2019', "'").replace('\u201c', "'").replace('\u201d', "'")
     
-    # Handle apostrophes used for quotation vs. contractions
-    # Find words or phrases surrounded by single quotes and convert to double quotes
-    quoted_pattern = r"'([^']+)'"
-    text = re.sub(quoted_pattern, r'"\1"', text)
+    # Normalize all double quotes to single quotes
+    text = text.replace('"', "'")
     
     # Keep only allowed characters: English letters, numbers, basic punctuation, and spaces
     cleaned_text = re.sub(r'[^\w\s,.?!\'"\-:+=]', '', text)
@@ -199,12 +196,12 @@ def get_topics(model, existing_topics=None) -> TopicsList:
     
     # Build the prompt
     prompt = f"""
-{role}
+        {role}
 
-{instruction}
+        {instruction}
 
-Each topic should:
-"""
+        Each topic should:
+        """
     
     # Add requirements from config
     for req in requirements:
@@ -225,18 +222,18 @@ Each topic should:
             examples = random.sample(existing_topics, len(existing_topics))
         
         prompt += f"""
-IMPORTANT: Avoid creating topics similar to these existing ones:
-{chr(10).join(['- ' + topic for topic in examples])}
+            IMPORTANT: Avoid creating topics similar to these existing ones:
+            {chr(10).join(['- ' + topic for topic in examples])}
 
-Make sure your topics are COMPLETELY DIFFERENT from the above.
-"""
+            Make sure your topics are COMPLETELY DIFFERENT from the above.
+            """
 
     prompt += """
-Output a JSON like:
-{
-  "topics": ["...", "...", "...", "...", "..."]
-}
-"""
+        Output a JSON like:
+        {
+        "topics": ["...", "...", "...", "...", "..."]
+        }
+        """
 
     chat.add_user_message(prompt)
 
@@ -274,13 +271,13 @@ def get_scenario(model, topic):
     
     # Build the prompt
     prompt = f"""
-{role}
+        {role}
 
-🎯 Your task:
-{instruction}
+        🎯 Your task:
+        {instruction}
 
-📏 Constraints:
-"""
+        📏 Constraints:
+        """
     
     # Add constraints from config
     for constraint in constraints:
@@ -295,6 +292,17 @@ def get_scenario(model, topic):
     prompt += f"- Set has_emoji to true for slides with an emoji, false for others\n"
     prompt += f"- Aim to include emojis in about 30-50% of slides\n"
     
+    # Add background image description constraint
+    prompt += f"- For EACH slide, provide a field called background_image_description.\n"
+    prompt += f"- This should be a **visually rich and concrete description** of the ideal image for the slide background.\n"
+    prompt += f"- It must be suitable for high-quality text-to-image generation tools like Stable Diffusion, DALL·E, or Midjourney.\n"
+    prompt += f"- Describe the **scene layout**, **environment**, **color palette**, and **lighting** in 10–30 words.\n"
+    prompt += f"- Align the description closely with the slide's emotion and content.\n"
+    prompt += f"- Use **descriptive adjectives and nouns**, such as: misty forest, neon skyline, ancient ruins, warm sunset.\n"
+    prompt += f"- Mention **style or aesthetic** if appropriate, e.g. surrealism, photorealism, cinematic, moody, pastel.\n"
+    prompt += f"- DO NOT include any text elements in the image description (e.g., no signs, subtitles, or captions).\n"
+    prompt += f"- DO NOT include the word 'image' or 'background' — just the visual scene.\n"
+    
     prompt += "\n📢 Style:\n"
     
     # Add style guidelines from config
@@ -303,36 +311,38 @@ def get_scenario(model, topic):
     
     # Add available media options (this is service-specific and stays in the code)
     prompt += f"""
-🎵 Available music files (select one that fits the mood):
-{", ".join(available_music)}
+        🎵 Available music files (select one that fits the mood):
+        {", ".join(available_music)}
 
-🎬 Available video files (select one that fits the theme):
-{", ".join(available_videos)}
+        🎬 Available video files (select one that fits the theme):
+        {", ".join(available_videos)}
 
-📦 Format your response as JSON:
-{{
-  "topic": "...",
-  "slides": [
-    {{ 
-      "text": "Slide 1", 
-      "emotion": "one of the emotions from the list", 
-      "duration_seconds": 2,
-      "has_emoji": true or false (randomly decide for each slide),
-      "emoji": "a single emoji that reinforces the emotion or message (only if has_emoji is true, otherwise leave empty)"
-    }},
-    {{ 
-      "text": "Slide 2", 
-      "emotion": "one of the emotions from the list", 
-      "duration_seconds": 3,
-      "has_emoji": true or false (randomly decide for each slide),
-      "emoji": "a single emoji that reinforces the emotion or message (only if has_emoji is true, otherwise leave empty)"
-    }},
-    ...
-  ],
-  "music": "Selected music filename from the list",
-  "video": "Selected video filename from the list"
-}}
-"""
+        📦 Format your response as JSON:
+        {{
+        "topic": "...",
+        "slides": [
+            {{ 
+            "text": "Slide 1", 
+            "emotion": "one of the emotions from the list", 
+            "duration_seconds": 2,
+            "has_emoji": true or false (randomly decide for each slide),
+            "emoji": "a single emoji that reinforces the emotion or message (only if has_emoji is true, otherwise leave empty)",
+            "background_image_description": "A brief description of the background image (optional)"
+            }},
+            {{ 
+            "text": "Slide 2", 
+            "emotion": "one of the emotions from the list", 
+            "duration_seconds": 3,
+            "has_emoji": true or false (randomly decide for each slide),
+            "emoji": "a single emoji that reinforces the emotion or message (only if has_emoji is true, otherwise leave empty)",
+            "background_image_description": "A brief description of the background image (optional)"
+            }},
+            ...
+        ],
+        "music": "Selected music filename from the list",
+        "video": "Selected video filename from the list"
+        }}
+        """
 
     chat.add_user_message(prompt)
 
@@ -359,10 +369,16 @@ def get_scenario(model, topic):
                 slide["has_emoji"] = False
                 slide["emoji"] = ""
 
+        # Ensure background_image_description field has a valid value
+        if "background_image_description" not in slide:
+            slide["background_image_description"] = ""
+
     print_subheader("🎬 Slides:")
     for idx, slide in enumerate(scenario["slides"], 1):
         emoji_display = f" [{slide['emoji']}]" if slide["has_emoji"] else ""
         print(f"  {idx}. \"{slide['text']}\"{emoji_display} - {slide['emotion']} ({slide['duration_seconds']}s)")
+        if slide["background_image_description"]:
+            print(f"     🖼️ Background: {slide['background_image_description']}")
     
     print_subheader("🎵 Selected music:")
     print(f"  {scenario['music']}")

@@ -66,11 +66,11 @@ def process_request(params):
             speaking_rate=speaking_rate,
             dnsmos_ovrl=4.0,
             speaker_noised=False,
-            cfg_scale=2.0,
-            min_p=0.15,
+            cfg_scale=4.0,
+            min_p=0.25,
             seed=420,
-            randomize_seed=True,
-            unconditional_keys=["emotion", "speaking_rate"],
+            randomize_seed=False,
+            unconditional_keys=[],
             progress=lambda *_: None  # dummy
         )
 
