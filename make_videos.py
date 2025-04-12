@@ -323,7 +323,7 @@ def format_text_for_display(text):
             parts = text.split(separator, 1)  # Split only on the first occurrence
             # For conjunctions, keep them with the second part
             if separator.strip() in ['but', 'and', 'or', 'because', 'when', 'if']:
-                return parts[0] + '\n' + separator.strip() + parts[1]
+                return parts[0] + '\n' + separator + parts[1]
             else:
                 # For punctuation, keep it with the first part
                 return parts[0] + separator.rstrip() + '\n' + parts[1]
