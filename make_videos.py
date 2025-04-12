@@ -740,9 +740,9 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
     # Calculate total video duration with adjusted slide durations
     content_duration = 0
     
-    # Get intro and outro delays from config (default to 1.0 second each if not specified)
+    # Get intro and outro delays from config (default to 1.0 second for intro and 2.0 seconds for outro if not specified)
     intro_delay = CONFIG["video"].get("intro_delay", 1.0)
-    outro_delay = CONFIG["video"].get("outro_delay", 1.0)
+    outro_delay = CONFIG["video"].get("outro_delay", 2.0)
     
     # Calculate content duration (without intro/outro delays)
     for i, slide in enumerate(slides):

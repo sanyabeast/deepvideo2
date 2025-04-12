@@ -34,7 +34,7 @@ video:
   voice_narration_volume: 1.0   # Volume multiplier for voice narration (0.0 to 1.0)
   use_consistent_font: true     # Use the same font for all slides in a scenario
   intro_delay: 1.0              # Delay in seconds before the first slide appears
-  outro_delay: 1.0              # Delay in seconds after the last slide before the video ends
+  outro_delay: 2.0              # Delay in seconds after the last slide before the video ends
   emoji_enabled: true           # Whether to render emojis in videos (true = enabled, false = disabled)
   emoji_font: "lib/noto_sans_emoji.ttf"  # Path to emoji font file (relative to project root)
   emoji_scale: 1.5              # Scale factor for emoji size (1.0 = normal, 1.5 = 50% larger)
