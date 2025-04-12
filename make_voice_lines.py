@@ -124,8 +124,8 @@ def preprocess_text_for_tts(text):
     if not text:
         return text
     
-    # 1. Remove all single and double quotes
-    text = text.replace("'", "").replace('"', "")
+    # 1. Remove all double quotes
+    text = text.replace('"', "")
     
     # 2. Replace three-dots (ellipsis) with a single dot
     text = text.replace("...", ".").replace(". . .", ".")
