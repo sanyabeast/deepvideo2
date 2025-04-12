@@ -460,7 +460,7 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
     # If no emojis or no emoji font, just return the main text clip
     return [main_txt_clip]
 
-def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
+def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voice_lines=True):
     """Generate a video from a scenario."""
     print(f"📌 Topic: {scenario['topic']}")
     
@@ -532,7 +532,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
         voice_line_filename = f"{scenario_name}_{slide_id}.wav"
         voice_line_path = os.path.join(voice_lines_dir, voice_line_filename)
         
-        if os.path.exists(voice_line_path):
+        if use_voice_lines and os.path.exists(voice_line_path):
             # Load voice line and set its start time
             try:
                 voice_clip = AudioFileClip(voice_line_path)
@@ -600,7 +600,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
         voice_line_filename = f"{scenario_name}_{slide_id}.wav"
         voice_line_path = os.path.join(voice_lines_dir, voice_line_filename)
         
-        if os.path.exists(voice_line_path):
+        if use_voice_lines and os.path.exists(voice_line_path):
             # Load voice line and set its start time
             try:
                 voice_clip = AudioFileClip(voice_line_path)
@@ -663,7 +663,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0):
     
     return output_path
 
-def process_scenario(scenario_path, vertical=True, force=False, quality=1.0):
+def process_scenario(scenario_path, vertical=True, force=False, quality=1.0, use_voice_lines=True):
     """Process a scenario file and generate a video.
     
     Args:
@@ -671,6 +671,7 @@ def process_scenario(scenario_path, vertical=True, force=False, quality=1.0):
         vertical: Whether to generate a vertical video (9:16 aspect ratio)
         force: Whether to process the scenario even if it has already been processed
         quality: Quality factor for rendering (1.0 = full quality, 0.5 = half resolution)
+        use_voice_lines: Whether to use voice lines in the video
     """
     try:
         with open(scenario_path, 'r', encoding='utf-8') as file:
@@ -685,7 +686,7 @@ def process_scenario(scenario_path, vertical=True, force=False, quality=1.0):
             return False
         
         # Generate the video
-        output_path = generate_video(scenario, scenario_path, vertical, quality)
+        output_path = generate_video(scenario, scenario_path, vertical, quality, use_voice_lines)
         
         if output_path:
             # Mark the scenario as processed
@@ -716,6 +717,8 @@ def parse_args():
                         help='Force processing of a scenario even if it has already been processed')
     parser.add_argument('-q', '--quality', type=float, default=1.0,
                         help='Quality factor for rendering (1.0 = full quality, 0.5 = half resolution)')
+    parser.add_argument('--skip-voices', action='store_true',
+                        help='Skip using voice lines in the videos')
     return parser.parse_args()
 
 def main():
@@ -761,7 +764,7 @@ def main():
             return
         
         # Process the scenario, with force flag if specified
-        success = process_scenario(scenario_path, vertical, args.force, args.quality)
+        success = process_scenario(scenario_path, vertical, args.force, args.quality, not args.skip_voices)
         
         if success:
             print(f"🎉 Video generation complete: {scenario_path}")
@@ -783,7 +786,7 @@ def main():
                 print(f"🎯 Processing scenario: {os.path.basename(scenario_path)}")
                 
                 # Process the scenario
-                success = process_scenario(scenario_path, vertical, quality=args.quality)
+                success = process_scenario(scenario_path, vertical, quality=args.quality, use_voice_lines=not args.skip_voices)
                 
                 if success:
                     videos_generated += 1
@@ -811,7 +814,7 @@ def main():
                 print(f"🎯 Selected scenario: {os.path.basename(scenario_path)}")
                 
                 # Process the scenario
-                success = process_scenario(scenario_path, vertical, quality=args.quality)
+                success = process_scenario(scenario_path, vertical, quality=args.quality, use_voice_lines=not args.skip_voices)
                 
                 if success:
                     videos_generated += 1
@@ -823,4 +826,9 @@ def main():
                 print("❌ No videos were generated.")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n⚠️ Process interrupted by user (Ctrl+C)")
+        print("🛑 Exiting gracefully...")
+        sys.exit(130)  # Standard exit code for SIGINT

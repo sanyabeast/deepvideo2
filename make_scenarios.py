@@ -55,6 +55,8 @@ emotions = None
 class ScenarioSlide(BaseModel):
     text: str
     emotion: str
+    has_emoji: bool
+    emoji: str
     duration_seconds: int
 
 class ScenarioDescription(BaseModel):
@@ -69,9 +71,58 @@ class TopicsList(BaseModel):
 # ─────────────────────────────────────────────────────
 # 🐍 UTILITIES
 # ─────────────────────────────────────────────────────
-def to_snake_case(text: str) -> str:
+def to_snake_case(text: str):
+    """Convert text to snake case for filenames."""
+    # Remove special characters and convert to lowercase
     text = re.sub(r'[^\w\s]', '', text).lower()
+    # Replace spaces with underscores
     return re.sub(r'\s+', '_', text)
+
+def clean_text(text: str):
+    """Clean text to remove special characters and non-English symbols.
+    
+    This function removes:
+    - Unicode special characters
+    - Emojis
+    - Non-English letters
+    - Special symbols
+    
+    It preserves:
+    - English letters (a-z, A-Z)
+    - Numbers (0-9)
+    - Basic punctuation (,.?!-'":+=)
+    - Spaces
+    
+    It also intelligently handles apostrophes:
+    - Preserves apostrophes in contractions (don't, can't, etc.)
+    - Converts single quotes used for quotation ('like this') to double quotes
+    """
+    # Replace ellipsis and other common special characters with their simple equivalents
+    text = text.replace('\u2026', '...').replace('\u2019', "'").replace('\u201c', '"').replace('\u201d', '"')
+    
+    # Handle apostrophes used for quotation vs. contractions
+    # Find words or phrases surrounded by single quotes and convert to double quotes
+    quoted_pattern = r"'([^']+)'"
+    text = re.sub(quoted_pattern, r'"\1"', text)
+    
+    # Keep only allowed characters: English letters, numbers, basic punctuation, and spaces
+    cleaned_text = re.sub(r'[^\w\s,.?!\'"\-:+=]', '', text)
+    
+    # Replace multiple spaces with a single space
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
+    
+    # Trim leading/trailing whitespace
+    cleaned_text = cleaned_text.strip()
+    
+    return cleaned_text
+
+def extract_emojis(text: str):
+    """Extract emojis from text."""
+    emojis = []
+    for char in text:
+        if char.isprintable() and not char.isascii():
+            emojis.append(char)
+    return emojis
 
 def get_existing_topics():
     """Get a list of existing topics from scenario files."""
@@ -238,6 +289,12 @@ def get_scenario(model, topic):
     # Add the emotion constraint which is specific to the code
     prompt += f"- Each slide MUST be assigned ONE of these specific emotions: {', '.join(emotions)}\n"
     
+    # Add emoji constraint
+    prompt += f"- For some slides (randomly chosen), add a single emoji that reinforces the emotion or message\n"
+    prompt += f"- The emoji should be relevant to the slide content and emotion\n"
+    prompt += f"- Set has_emoji to true for slides with an emoji, false for others\n"
+    prompt += f"- Aim to include emojis in about 30-50% of slides\n"
+    
     prompt += "\n📢 Style:\n"
     
     # Add style guidelines from config
@@ -256,8 +313,20 @@ def get_scenario(model, topic):
 {{
   "topic": "...",
   "slides": [
-    {{ "text": "Slide 1", "emotion": "one of the emotions from the list", "duration_seconds": 2 }},
-    {{ "text": "Slide 2", "emotion": "one of the emotions from the list", "duration_seconds": 3 }},
+    {{ 
+      "text": "Slide 1", 
+      "emotion": "one of the emotions from the list", 
+      "duration_seconds": 2,
+      "has_emoji": true or false (randomly decide for each slide),
+      "emoji": "a single emoji that reinforces the emotion or message (only if has_emoji is true, otherwise leave empty)"
+    }},
+    {{ 
+      "text": "Slide 2", 
+      "emotion": "one of the emotions from the list", 
+      "duration_seconds": 3,
+      "has_emoji": true or false (randomly decide for each slide),
+      "emoji": "a single emoji that reinforces the emotion or message (only if has_emoji is true, otherwise leave empty)"
+    }},
     ...
   ],
   "music": "Selected music filename from the list",
@@ -269,10 +338,31 @@ def get_scenario(model, topic):
 
     prediction = model.respond(chat, response_format=ScenarioDescription)
     scenario = prediction.parsed
+    
+    # Clean the text in each slide to remove special characters and non-English symbols
+    for slide in scenario["slides"]:
+        slide["text"] = clean_text(slide["text"])
+        
+        # Ensure emoji fields have valid values
+        if "has_emoji" not in slide:
+            slide["has_emoji"] = False
+        
+        if "emoji" not in slide or not slide["has_emoji"]:
+            slide["emoji"] = ""
+        elif slide["has_emoji"]:
+            # Keep only a single emoji if multiple were provided
+            emojis = extract_emojis(slide["emoji"])
+            if emojis:
+                slide["emoji"] = emojis[0]  # Keep only the first emoji
+            else:
+                # If no valid emoji was found, set has_emoji to False
+                slide["has_emoji"] = False
+                slide["emoji"] = ""
 
     print_subheader("🎬 Slides:")
     for idx, slide in enumerate(scenario["slides"], 1):
-        print(f"  {idx}. \"{slide['text']}\" - {slide['emotion']} ({slide['duration_seconds']}s)")
+        emoji_display = f" [{slide['emoji']}]" if slide["has_emoji"] else ""
+        print(f"  {idx}. \"{slide['text']}\"{emoji_display} - {slide['emotion']} ({slide['duration_seconds']}s)")
     
     print_subheader("🎵 Selected music:")
     print(f"  {scenario['music']}")
@@ -381,6 +471,14 @@ def main():
         existing_topics.append(selected_topic)
     
     print("\n🎉 All done!")
+    
+    # Unload the model to free up resources
+    model.unload()
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n⚠️ Process interrupted by user (Ctrl+C)")
+        print("🛑 Exiting gracefully...")
+        sys.exit(130)  # Standard exit code for SIGINT

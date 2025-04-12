@@ -311,4 +311,9 @@ def main():
     print("\n🎉 Voice line generation complete!")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n⚠️ Process interrupted by user (Ctrl+C)")
+        print("🛑 Exiting gracefully...")
+        sys.exit(130)  # Standard exit code for SIGINT

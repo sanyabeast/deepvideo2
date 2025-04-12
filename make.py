@@ -24,6 +24,7 @@ def parse_args():
     parser.add_argument("-n", "--num", type=int, default=1, help="Target number of scenarios/videos to have (default: 1)")
     parser.add_argument("-q", "--quality", type=float, default=1.0, help="Video quality factor (0.0-1.0, default: 1.0)")
     parser.add_argument("-m", "--model", type=str, help="Custom LLM model to use (overrides config)")
+    parser.add_argument("--skip-voices", action="store_true", help="Skip voice generation step")
     
     return parser.parse_args()
 
@@ -76,13 +77,19 @@ def run_script(script_name, args):
     print(f"{'-'*70}")
     
     start_time = time.time()
-    process = subprocess.run(cmd)
-    elapsed_time = time.time() - start_time
-    
-    print(f"{'-'*70}")
-    print(f"✅ Finished {script_name} (Exit code: {process.returncode}, Time: {elapsed_time:.2f}s)")
-    
-    return process.returncode
+    try:
+        process = subprocess.run(cmd)
+        elapsed_time = time.time() - start_time
+        
+        print(f"{'-'*70}")
+        print(f"✅ Finished {script_name} (Exit code: {process.returncode}, Time: {elapsed_time:.2f}s)")
+        
+        return process.returncode
+    except KeyboardInterrupt:
+        elapsed_time = time.time() - start_time
+        print(f"\n{'-'*70}")
+        print(f"⚠️ {script_name} interrupted by user after {elapsed_time:.2f}s")
+        return 130  # Standard exit code for SIGINT (Ctrl+C)
 
 def main():
     """Main entry point for the script."""
@@ -115,6 +122,8 @@ def main():
     print(f"Quality factor: {args.quality}")
     if args.model:
         print(f"Using custom model: {args.model}")
+    if args.skip_voices:
+        print(f"Voice generation: SKIPPED")
     print(f"{'='*70}\n")
     
     # Step 1: Generate scenarios (only if needed)
@@ -134,17 +143,20 @@ def main():
         print(f"✅ Already have {existing_count} scenarios, which meets or exceeds target of {args.num}. Skipping scenario generation.")
     
     # Step 2: Generate voice lines for all scenarios
-    voice_args = ["-c", args.config]
-    exit_code = run_script("make_voice_lines.py", voice_args)
-    if exit_code != 0:
-        print("❌ Failed to generate voice lines. Stopping.")
-        return exit_code
+    if not args.skip_voices:
+        voice_args = ["-c", args.config]
+        exit_code = run_script("make_voice_lines.py", voice_args)
+        if exit_code != 0:
+            print("❌ Failed to generate voice lines. Stopping.")
+            return exit_code
     
     # Step 3: Generate videos
     # Use -1 to process all unprocessed scenarios
     video_args = ["-c", args.config, "-n", "-1"]
     if args.quality != 1.0:
         video_args.extend(["-q", str(args.quality)])
+    if args.skip_voices:
+        video_args.append("--skip-voices")
     exit_code = run_script("make_videos.py", video_args)
     if exit_code != 0:
         print("❌ Failed to generate videos. Stopping.")
@@ -156,4 +168,9 @@ def main():
     return 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("\n\n⚠️ Process interrupted by user (Ctrl+C)")
+        print("🛑 Exiting gracefully...")
+        sys.exit(130)  # Standard exit code for SIGINT

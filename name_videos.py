@@ -318,7 +318,9 @@ def main():
         print(f"⚠️ Warning: Could not clean up temp directory: {str(e)}")
     
     print("\n🎉 All done!")
-
+    
+    # Unload the model to free up resources
+    model.unload()
 
 if __name__ == "__main__":
     main()
