@@ -1,18 +1,19 @@
 import os
 import sys
-import random
 import yaml
-import argparse
+import random
+import difflib
 import re
 import glob
-from datetime import datetime
-import difflib
 import platform
-from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, ColorClip, CompositeAudioClip
+from datetime import datetime
+import argparse
+from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, ColorClip, CompositeAudioClip, ImageClip
 from moviepy.config import change_settings
 import emoji
 from PIL import ImageFont, Image, ImageDraw
 import numpy as np
+from pilmoji import Pilmoji
 
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -138,29 +139,16 @@ def get_random_font():
     return random_font
 
 def get_emoji_font():
-    """Get a font for emoji rendering from the emoji fonts directory."""
-    emoji_font_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), CONFIG["directories"]["emoji_fonts_dir"])
-    if not os.path.exists(emoji_font_dir):
-        print(f"⚠️ Emoji font directory not found: {emoji_font_dir}")
+    """Get a font for emoji rendering."""
+    # Use hardcoded path to emoji font
+    emoji_font_path = os.path.join(PROJECT_DIR, "lib", "emoji.ttf")
+    
+    if not os.path.exists(emoji_font_path):
+        print(f"⚠️ Emoji font not found at: {emoji_font_path}")
         return None
     
-    # Look for Noto Color Emoji font first
-    noto_fonts = glob.glob(os.path.join(emoji_font_dir, "*Noto*Emoji*.ttf"))
-    if noto_fonts:
-        noto_font = noto_fonts[0]
-        print(f"🔤 Found Noto Emoji font: {os.path.basename(noto_font)}")
-        return noto_font
-    
-    # If no Noto font, try any other emoji font
-    emoji_fonts = glob.glob(os.path.join(emoji_font_dir, "*.ttf"))
-    if emoji_fonts:
-        emoji_font = emoji_fonts[0]
-        print(f"🔤 Using emoji font: {os.path.basename(emoji_font)}")
-        return emoji_font
-    
-    # If no emoji fonts found, return None
-    print("⚠️ No emoji fonts found in the emoji fonts directory.")
-    return None
+    print(f"🔤 Using emoji font: {emoji_font_path}")
+    return emoji_font_path
 
 def extract_emojis(text):
     """Extract emoji characters from text."""
@@ -337,12 +325,12 @@ def format_text_for_display(text):
     # If all else fails, return the original text
     return text
 
-def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=None):
+def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=None, slide_emoji=None):
     """Create a text clip with the given text and duration."""
     # Format text for better display
     formatted_text = format_text_for_display(text)
     
-    # Extract and remove emojis
+    # Extract and remove emojis from the text itself
     emojis = extract_emojis(formatted_text)
     text_without_emojis = remove_emojis(formatted_text)
     
@@ -433,32 +421,141 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
     main_txt_clip = main_txt_clip.set_start(start_time)
     main_txt_clip = main_txt_clip.set_duration(duration)
     
-    # If there are emojis and we have an emoji font, create a separate emoji clip
+    # Create a list to hold all text clips
+    text_clips = [main_txt_clip]
+    
+    # If there's a slide emoji and we have an emoji font, create a separate emoji clip using Pilmoji
+    if slide_emoji and emoji_font_path:
+        print(f"🔤 Rendering slide emoji at top: {slide_emoji}")
+        print(f"🔤 Using emoji font: {os.path.basename(emoji_font_path)}")
+        
+        emoji_font_size = int(150 * quality)  # Larger emoji font size
+        
+        # Create emoji image using PIL
+        emoji_image = create_emoji_image(slide_emoji, emoji_font_path, emoji_font_size)
+        
+        if emoji_image is not None:
+            # Create an ImageClip from the emoji image
+            slide_emoji_clip = ImageClip(emoji_image, transparent=True)
+            
+            # Position slide emoji at the top of the screen
+            slide_emoji_clip = slide_emoji_clip.set_position(('center', video_size[1] * 0.15))
+            slide_emoji_clip = slide_emoji_clip.set_start(start_time)
+            slide_emoji_clip = slide_emoji_clip.set_duration(duration)
+            
+            # Add to text clips list
+            text_clips.append(slide_emoji_clip)
+        else:
+            print(f"⚠️ Failed to create emoji image for '{slide_emoji}'")
+    
+    # If there are emojis in the text itself and we have an emoji font, create a separate emoji clip
     if emojis and emoji_font_path:
-        print(f"🔤 Rendering emojis separately: {emojis}")
+        print(f"🔤 Rendering text emojis separately: {emojis}")
         print(f"🔤 Using emoji font: {os.path.basename(emoji_font_path)}")
         
         emoji_font_size = int(100 * quality)  # Scale emoji font size
         
-        emoji_txt_clip = TextClip(
-            txt=emojis,
-            fontsize=emoji_font_size,  # Scale emoji font size based on quality
-            color='white',
-            font=emoji_font_path,
-            align='center',
-            method='label'
-        )
+        # Create emoji image using PIL
+        emoji_image = create_emoji_image(emojis, emoji_font_path, emoji_font_size)
         
-        # Position emojis at the bottom of the screen
-        emoji_txt_clip = emoji_txt_clip.set_position(('center', video_size[1] * 0.85))
-        emoji_txt_clip = emoji_txt_clip.set_start(start_time)
-        emoji_txt_clip = emoji_txt_clip.set_duration(duration)
-        
-        # Return both clips as a list
-        return [main_txt_clip, emoji_txt_clip]
+        if emoji_image is not None:
+            # Create an ImageClip from the emoji image
+            emoji_txt_clip = ImageClip(emoji_image, transparent=True)
+            
+            # Position emojis at the bottom of the screen
+            emoji_txt_clip = emoji_txt_clip.set_position(('center', video_size[1] * 0.85))
+            emoji_txt_clip = emoji_txt_clip.set_start(start_time)
+            emoji_txt_clip = emoji_txt_clip.set_duration(duration)
+            
+            # Add to text clips list
+            text_clips.append(emoji_txt_clip)
+        else:
+            print(f"⚠️ Failed to create emoji image for '{emojis}'")
     
-    # If no emojis or no emoji font, just return the main text clip
-    return [main_txt_clip]
+    # Return all clips as a list
+    return text_clips
+
+def create_emoji_image(emoji_text, font_path, font_size):
+    """Create an image with colorful emoji using Pilmoji.
+    
+    Args:
+        emoji_text: The emoji text to render (can be Unicode escape sequence like "\U0001F603")
+        font_path: Path to the emoji font file
+        font_size: Font size for the emoji
+        
+    Returns:
+        numpy array of the rendered emoji image with transparency
+    """
+    if not emoji_text or not font_path:
+        print(f"⚠️ Cannot create emoji image: {'No emoji text' if not emoji_text else 'No font path'}")
+        return None
+    
+    try:
+        print(f"🔍 Creating emoji image for: '{emoji_text}' (type: {type(emoji_text).__name__})")
+        
+        # Convert Unicode escape sequences to actual emoji characters if needed
+        # This handles cases where emoji is stored as "\U0001F603" in YAML
+        if isinstance(emoji_text, str) and ('\\U' in emoji_text or '\\u' in emoji_text):
+            try:
+                decoded_emoji = emoji_text.encode().decode('unicode_escape')
+                print(f"🔄 Decoded Unicode escape sequence: '{emoji_text}' → '{decoded_emoji}'")
+                emoji_text = decoded_emoji
+            except Exception as e:
+                print(f"⚠️ Error decoding Unicode escape sequence: {str(e)}")
+        
+        # Verify the emoji font exists
+        if not os.path.exists(font_path):
+            print(f"⚠️ Emoji font not found: {font_path}")
+            return None
+            
+        print(f"🔤 Loading emoji font: {os.path.basename(font_path)}")
+        emoji_font = ImageFont.truetype(font_path, font_size)
+        
+        # Create a larger canvas to ensure emoji fits
+        canvas_size = (font_size * 3, font_size * 3)
+        print(f"🖼️ Creating canvas of size: {canvas_size}")
+        
+        # Create a transparent image
+        image = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
+        
+        # Use Pilmoji to render the emoji with color
+        with Pilmoji(image) as pilmoji:
+            # Calculate position to center the emoji
+            try:
+                text_width, text_height = emoji_font.getsize(emoji_text)
+                position = ((canvas_size[0] - text_width) // 2, (canvas_size[1] - text_height) // 2)
+                print(f"📐 Emoji size: {text_width}x{text_height}, Position: {position}")
+            except Exception as e:
+                print(f"⚠️ Error calculating text size: {str(e)}")
+                position = (canvas_size[0] // 4, canvas_size[1] // 4)
+            
+            # Draw the emoji with white color
+            print(f"🖌️ Drawing emoji with Pilmoji")
+            pilmoji.text(position, emoji_text, (255, 255, 255), emoji_font)
+        
+        # Trim transparent edges
+        bbox = image.getbbox()
+        if bbox:
+            print(f"✂️ Cropping image to bbox: {bbox}")
+            image = image.crop(bbox)
+            print(f"🖼️ Final image size: {image.size}")
+        else:
+            print("⚠️ No bounding box found (image might be empty)")
+        
+        # Save a debug copy of the emoji image
+        temp_dir = os.path.join(PROJECT_DIR, "temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        debug_path = os.path.join(temp_dir, f"emoji_debug_{hash(emoji_text)}.png")
+        image.save(debug_path)
+        print(f"💾 Saved emoji image to: {debug_path}")
+        
+        # Convert to numpy array for MoviePy
+        return np.array(image)
+    except Exception as e:
+        print(f"❌ Error creating emoji image: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voice_lines=True):
     """Generate a video from a scenario."""
@@ -622,7 +719,7 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
             print(f"📝 No voice line for slide {i+1}, using original duration: {slide_duration}s")
         
         # Create text clips for this slide using the consistent font if enabled
-        text_clips = create_text_clip(slide['text'], slide_duration, current_time, target_resolution, quality, scenario_font)
+        text_clips = create_text_clip(slide['text'], slide_duration, current_time, target_resolution, quality, scenario_font, slide.get('emoji'))
         all_clips.extend(text_clips)
         
         # Update current time
@@ -702,6 +799,29 @@ def process_scenario(scenario_path, vertical=True, force=False, quality=1.0, use
     except Exception as e:
         print(f"❌ Error processing scenario {scenario_path}: {str(e)}")
         return False
+
+def cleanup_temp_mp4_files():
+    """Remove any temporary MP4 files from the root directory."""
+    print("\n🧹 Cleaning up temporary MP4 files from root directory...")
+    
+    # Get all MP4 files in the root directory
+    root_mp4_files = glob.glob(os.path.join(PROJECT_DIR, "*.mp4"))
+    
+    if not root_mp4_files:
+        print("✅ No temporary MP4 files found.")
+        return
+    
+    # Remove each file
+    removed_count = 0
+    for mp4_file in root_mp4_files:
+        try:
+            os.remove(mp4_file)
+            print(f"  ✅ Removed: {os.path.basename(mp4_file)}")
+            removed_count += 1
+        except Exception as e:
+            print(f"  ❌ Failed to remove {os.path.basename(mp4_file)}: {str(e)}")
+    
+    print(f"🧹 Cleanup complete. Removed {removed_count} temporary MP4 file(s).")
 
 def parse_args():
     """Parse command line arguments."""
@@ -824,6 +944,9 @@ def main():
                 print(f"✅ Successfully generated {videos_generated} videos.")
             else:
                 print("❌ No videos were generated.")
+
+    # Clean up temporary MP4 files
+    cleanup_temp_mp4_files()
 
 if __name__ == "__main__":
     try:
