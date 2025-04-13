@@ -48,6 +48,7 @@ images:
   comfy_server_address: "127.0.0.1:8188"  # URL to the ComfyUI server
   steps: 20  # Number of steps for image generation
   default_negative_prompt: "text, watermark, signature, blurry, distorted, low resolution, poorly drawn, bad anatomy, deformed, disfigured, out of frame, cropped"  # Default negative prompt
+  generation_timeout: 60  # Maximum wait time in seconds for image generation
   # The workflow is a JSON representation of the ComfyUI workflow
   # This is a basic example using Flux model, but you can export your own workflow from ComfyUI
   # Special placeholders:

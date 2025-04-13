@@ -131,6 +131,7 @@ images:
   comfy_server_address: "127.0.0.1:8188"  # ComfyUI server address
   steps: 20                               # Default steps for image generation
   default_negative_prompt: "text, watermark, signature, blurry, distorted, low resolution"  # Default negative prompt
+  generation_timeout: 60                  # Maximum wait time in seconds for image generation
   workflow: |                             # ComfyUI workflow JSON with placeholders
     {
       "6": {

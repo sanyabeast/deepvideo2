@@ -156,6 +156,7 @@ SCENARIOS_DIR = None
 IMAGES_DIR = None
 CLIENT_ID = str(uuid.uuid4())
 DEBUG = False  # Set to True to enable verbose logging
+GENERATION_TIMEOUT = None
 
 # ─────────────────────────────────────────────────────
 # 🐍 UTILITIES
@@ -246,7 +247,7 @@ def get_images_from_websocket(prompt_id):
         output_images = []
         current_node = ""
         timeout_counter = 0
-        max_timeout = 60  # 1 minute max wait time
+        max_timeout = GENERATION_TIMEOUT  # Use the timeout from config
         saved_images = []  # Track images saved by SaveImage node
         
         log(f"Generating image...", "⏳")
@@ -596,7 +597,7 @@ def parse_arguments():
 
 def main():
     """Main function to process all scenarios."""
-    global CONFIG, COMFY_SERVER_ADDRESS, COMFY_WORKFLOW, STEPS, SCENARIOS_DIR, IMAGES_DIR, DEBUG
+    global CONFIG, COMFY_SERVER_ADDRESS, COMFY_WORKFLOW, STEPS, SCENARIOS_DIR, IMAGES_DIR, DEBUG, GENERATION_TIMEOUT
     
     # Parse command line arguments
     args = parse_arguments()
@@ -615,7 +616,8 @@ def main():
             "comfy_server_address": "127.0.0.1:8188",
             "steps": 20,
             "default_negative_prompt": "text, watermark, signature, blurry, distorted, low resolution, poorly drawn, bad anatomy, deformed, disfigured, out of frame, cropped",
-            "workflow": json.dumps(DEFAULT_WORKFLOW)
+            "workflow": json.dumps(DEFAULT_WORKFLOW),
+            "generation_timeout": 60  # Default timeout in seconds
         }
     
     # Set ComfyUI server address
@@ -632,6 +634,9 @@ def main():
     # Set steps (CLI args take priority over config)
     config_steps = CONFIG["images"].get("steps", 20)
     STEPS = args.steps if args.steps is not None else config_steps
+    
+    # Set generation timeout
+    GENERATION_TIMEOUT = CONFIG["images"].get("generation_timeout", 60)
     
     # Set directories
     if "directories" not in CONFIG:
@@ -654,6 +659,7 @@ def main():
     log(f"Project: {CONFIG.get('project_name', 'DeepVideo2')}", "📁")
     log(f"ComfyUI Server: {COMFY_SERVER_ADDRESS}", "🌐")
     log(f"Steps: {STEPS}", "🔢")
+    log(f"Generation Timeout: {GENERATION_TIMEOUT} seconds", "🕒")
     log(f"Force regenerate: {args.force}", "🔄")
     
     # Get all scenario files
