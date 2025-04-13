@@ -175,7 +175,10 @@ def update_progress(scenario_index, total_scenarios, slide_index, total_slides, 
           f"Success: {SUCCESSFUL_IMAGES} | "
           f"Failed: {FAILED_IMAGES} | "
           f"Elapsed: {format_time(elapsed_time)} | "
-          f"ETA: {format_time(estimated_time_remaining)}", end="")
+          f"ETA: {format_time(estimated_time_remaining)}")
+    
+    # Add a line break to ensure next messages start on a new line
+    print()
 
 def load_config(config_path=None):
     """Load configuration from YAML file."""
@@ -613,6 +616,7 @@ def process_scenario(scenario_file, force=False):
         # Check if the image already exists
         if os.path.exists(output_image_path) and not force:
             debug_log(f"Slide {slide_id}: Image already exists, skipping", "⏭️")
+            # Update progress without adding to success/failure counts
             update_progress(scenario_file_index, len(scenario_files), i, total_slides, True)
             continue
         
