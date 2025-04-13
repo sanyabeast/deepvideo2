@@ -34,8 +34,8 @@ from PIL import Image
 import io
 import websocket
 
-# Define default workflow with placeholders
-DEFAULT_WORKFLOW = {
+# Define default workflow with placeholders as a raw multiline string
+DEFAULT_WORKFLOW = r'''{
     "6": {
         "inputs": {
             "text": "{PROMPT}",
@@ -66,8 +66,8 @@ DEFAULT_WORKFLOW = {
     },
     "31": {
         "inputs": {
-            "seed": "{SEED}",
-            "steps": "{STEPS}",
+            "seed": {SEED},
+            "steps": {STEPS},
             "cfg": 1,
             "sampler_name": "euler",
             "scheduler": "simple",
@@ -93,7 +93,7 @@ DEFAULT_WORKFLOW = {
         "class_type": "FluxGuidance",
         "_meta": { "title": "FluxGuidance" }
     }
-}
+}'''
 
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -443,7 +443,7 @@ def generate_image(prompt_text, negative_prompt="", steps=20):
     
     try:
         # Create a copy of the workflow template
-        workflow_str = json.dumps(DEFAULT_WORKFLOW)
+        workflow_str = DEFAULT_WORKFLOW
         
         # Generate a random seed
         random_seed = random.randint(1, 2147483647)
