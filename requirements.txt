@@ -15,8 +15,10 @@ fastapi==0.115.12
 ffmpy==0.5.0
 filelock==3.18.0
 fsspec==2025.3.2
+gevent==24.11.1
 gradio==5.25.0
 gradio_client==1.8.0
+greenlet==3.1.1
 groovy==0.1.2
 h11==0.14.0
 httpcore==1.0.7
@@ -84,6 +86,10 @@ typing_extensions==4.13.2
 tzdata==2025.2
 urllib3==2.4.0
 uvicorn==0.34.0
+websocket==0.2.1
+websocket-client==1.8.0
 websockets==15.0.1
 wheel==0.45.1
 wsproto==1.2.0
+zope.event==5.0
+zope.interface==7.2
