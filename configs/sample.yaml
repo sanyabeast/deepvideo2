@@ -43,6 +43,15 @@ video:
     min_angle: -30              # Minimum rotation angle in degrees
     max_angle: 30               # Maximum rotation angle in degrees
 
+# Image Generation Configuration
+images:
+  sd_api_url: "http://127.0.0.1:6969/sdapi/v1"  # URL to the Stable Diffusion A1111 API
+  checkpoint: "sdxl.1.0-realvis-v50-lightning-baked-vae.safetensors"  # Default checkpoint to use
+  steps: 24  # Number of steps for image generation
+  sampler_name: "DPM++ SDE"  # Sampler algorithm to use
+  scheduler: "Karras"  # Scheduler to use with the sampler
+  default_negative_prompt: "text, watermark, signature, blurry, distorted, low resolution, poorly drawn, bad anatomy, deformed, disfigured, out of frame, cropped"  # Default negative prompt
+
 # Media Options
 media_options:
   music_files_count: 16  # Number of music files to show in scenario generation
@@ -105,3 +114,4 @@ directories:
   scenarios: "scenarios"
   voice_lines: "voice_lines"
   output_videos: "videos"
+  images: "images"
