@@ -167,38 +167,40 @@ def clean_project(config_file, reset_only, progress=gr.Progress()):
 
 def get_project_info(config_file):
     """Get information about the current state of a project"""
-    project = get_project_name(config_file)
+    if not config_file:
+        return "No project selected"
     
-    # Check project directories
-    scenarios_dir = os.path.join("output", project, "scenarios")
-    voice_lines_dir = os.path.join("output", project, "voice_lines")
-    videos_dir = os.path.join("output", project, "videos")
+    try:
+        config = load_config(config_file)
+        project = config.get("project_name", os.path.splitext(os.path.basename(config_file))[0])
+        
+        # Get directories
+        project_dir = os.path.join("output", project)
+        scenarios_dir = os.path.join(project_dir, config["directories"].get("scenarios", "scenarios"))
+        voice_lines_dir = os.path.join(project_dir, config["directories"].get("voice_lines", "voice_lines"))
+        videos_dir = os.path.join(project_dir, config["directories"].get("output_videos", "videos"))
+        
+        # Count files
+        scenario_files = glob.glob(os.path.join(scenarios_dir, "*.yaml"))
+        voice_files = glob.glob(os.path.join(voice_lines_dir, "*.mp3"))
+        video_files = glob.glob(os.path.join(videos_dir, "*.mp4"))
+        
+        # Count processed scenarios (those with videos)
+        processed_count = 0
+        for scenario_file in scenario_files:
+            scenario_name = os.path.splitext(os.path.basename(scenario_file))[0]
+            video_path = os.path.join(videos_dir, f"{scenario_name}.mp4")
+            if os.path.exists(video_path):
+                processed_count += 1
     
-    # Count files
-    scenarios_count = len(glob.glob(os.path.join(scenarios_dir, "*.yaml"))) if os.path.exists(scenarios_dir) else 0
-    voice_lines_count = len(glob.glob(os.path.join(voice_lines_dir, "*.wav"))) if os.path.exists(voice_lines_dir) else 0
-    videos_count = len(glob.glob(os.path.join(videos_dir, "*.mp4"))) if os.path.exists(videos_dir) else 0
-    
-    # Count processed scenarios
-    processed_count = 0
-    if os.path.exists(scenarios_dir):
-        for scenario_file in glob.glob(os.path.join(scenarios_dir, "*.yaml")):
-            try:
-                with open(scenario_file, "r", encoding="utf-8") as f:
-                    scenario = yaml.safe_load(f)
-                    if scenario.get("has_video", False):
-                        processed_count += 1
-            except:
-                pass
-    
-    info = f"""
+        info = f"""
 ## Project: {project}
 
 ### Current Status:
-- Scenarios: {scenarios_count} total
-- Voice Lines: {voice_lines_count} total
-- Videos: {videos_count} total
-- Processed Scenarios: {processed_count} / {scenarios_count if scenarios_count > 0 else 0}
+- Scenarios: {len(scenario_files)} total
+- Voice Lines: {len(voice_files)} total
+- Videos: {len(video_files)} total
+- Processed Scenarios: {processed_count} / {len(scenario_files) if scenario_files else 0}
 
 ### Directories:
 - Scenarios: {scenarios_dir}
@@ -206,7 +208,9 @@ def get_project_info(config_file):
 - Videos: {videos_dir}
 """
     
-    return info
+        return info
+    except Exception as e:
+        return f"Failed to load project information: {str(e)}"
 
 def list_videos(config_file):
     """List videos for the selected project"""

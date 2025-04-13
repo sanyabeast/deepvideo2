@@ -254,8 +254,13 @@ def find_unprocessed_scenarios():
         try:
             with open(scenario_path, 'r', encoding='utf-8') as f:
                 scenario = yaml.safe_load(f)
-                # Check if the scenario has already been processed
-                if not scenario.get('has_video', False):
+                
+                # Get the output video path
+                scenario_name = os.path.splitext(os.path.basename(scenario_path))[0]
+                output_path = os.path.join(OUTPUT_DIR, f"{scenario_name}.mp4")
+                
+                # Check if the video file already exists
+                if not os.path.exists(output_path):
                     unprocessed_scenarios.append(scenario_path)
         except Exception as e:
             log(f"Error reading {os.path.basename(scenario_path)}: {str(e)}", "⚠️")
@@ -898,21 +903,20 @@ def process_scenario(scenario_path, vertical=True, force=False, quality=1.0, use
         
         log(f"Topic: {scenario['topic']}", "📌")
         
-        # Check if the scenario has already been processed
-        if not force and scenario.get('has_video', False):
-            log(f"Scenario has already been processed: {scenario_path}", "⚠️")
-            log(f"   Use -f to process it anyway.", "💡")
+        # Get the output video path
+        scenario_name = os.path.splitext(os.path.basename(scenario_path))[0]
+        output_path = os.path.join(OUTPUT_DIR, f"{scenario_name}.mp4")
+        
+        # Check if the video file already exists
+        if not force and os.path.exists(output_path):
+            log(f"Video already exists: {output_path}", "⚠️")
+            log(f"   Use -f to regenerate it.", "💡")
             return False
         
         # Generate the video
         output_path = generate_video(scenario, scenario_path, vertical, quality, use_voice_lines)
         
         if output_path:
-            # Mark the scenario as processed
-            scenario['has_video'] = True
-            with open(scenario_path, 'w', encoding='utf-8') as file:
-                yaml.dump(scenario, file, default_flow_style=False)
-            log(f"Scenario marked as processed: {scenario_path}", "✅")
             log(f"Video generation complete: {output_path}", "🎉")
             return True
         else:

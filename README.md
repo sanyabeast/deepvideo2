@@ -231,14 +231,18 @@ Options:
 To clean generated content:
 
 ```
-python clean.py -c configs/your_project.yaml -r
+python clean.py -c configs/your_project.yaml --videos --voices --images
 ```
 
 Options:
 - `-c, --config`: Path to the configuration file
-- `-r, --reset`: Reset the has_video property in scenario files
-- `-d, --hard`: Delete all generated content for the project
-- `-a, --all`: Delete ALL output directories (use with caution)
+- `--videos`: Clean generated video files
+- `--voices`: Clean generated voice line files
+- `--images`: Clean generated image files
+- `--scenarios`: Clean generated scenario files
+- `--all`: Clean all generated content for the project
+- `--all-projects`: Clean all output directories (use with caution)
+- `--dry-run`: Show what would be deleted without actually deleting anything
 
 ### Naming Background Videos
 
