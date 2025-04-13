@@ -702,6 +702,8 @@ def process_scenario(scenario_file, force=False):
     
     # Generate images for each slide
     images_generated = 0
+    slides_without_images = []
+    
     for i, slide in enumerate(slides):
         # Get the slide ID
         slide_id = slide.get("id", i + 1)
@@ -712,6 +714,7 @@ def process_scenario(scenario_file, force=False):
         # Skip if no background image is specified
         if not background_image:
             debug_log(f"Slide {slide_id}: No background image specified, skipping", "⏭️")
+            slides_without_images.append(slide_id)
             continue
         
         # Generate the output image path
@@ -739,6 +742,10 @@ def process_scenario(scenario_file, force=False):
         
         # Update progress
         update_progress(scenario_file_index, len(scenario_files), i, total_slides, success)
+    
+    # Log summary of slides without images
+    if slides_without_images:
+        log(f"{len(slides_without_images)} of {total_slides} slides have no background image description: {slides_without_images}", "ℹ️")
     
     return images_generated, total_slides
 

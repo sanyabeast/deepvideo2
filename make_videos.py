@@ -14,6 +14,7 @@ import emoji
 from PIL import ImageFont, Image, ImageDraw
 import numpy as np
 from pilmoji import Pilmoji
+import cv2
 
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -70,6 +71,7 @@ VIDEOS_DIR = None
 MUSIC_DIR = None
 VOICE_LINES_DIR = None
 OUTPUT_DIR = None
+IMAGES_DIR = None
 FONTS_DIR = None
 EMOJI_FONTS_DIR = None
 
@@ -78,15 +80,13 @@ EMOJI_FONTS_DIR = None
 # ─────────────────────────────────────────────────────
 def update_directories():
     """Update directory paths based on the loaded configuration."""
-    global SCRIPT_DIR, SCENARIOS_DIR, VIDEOS_DIR, MUSIC_DIR, VOICE_LINES_DIR, OUTPUT_DIR, FONTS_DIR, EMOJI_FONTS_DIR
+    global SCRIPT_DIR, SCENARIOS_DIR, VIDEOS_DIR, MUSIC_DIR, VOICE_LINES_DIR, OUTPUT_DIR, IMAGES_DIR, FONTS_DIR, EMOJI_FONTS_DIR
     
     # Get project name
     project_name = CONFIG.get("project_name", "DeepVideo2")
     
-    # Set script directory
-    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    
-    # Input directories (static resources)
+    # Input directories (shared across projects)
+    SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
     VIDEOS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["videos_dir"])
     MUSIC_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["music_dir"])
     FONTS_DIR = os.path.join(SCRIPT_DIR, CONFIG["directories"]["fonts_dir"])
@@ -97,8 +97,26 @@ def update_directories():
     VOICE_LINES_DIR = os.path.join(SCRIPT_DIR, "output", project_name, CONFIG["directories"]["voice_lines"])
     OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output", project_name, CONFIG["directories"]["output_videos"])
     
-    # Create output directory if it doesn't exist
+    # Images directory (might not be in CONFIG["directories"])
+    if "images" in CONFIG["directories"]:
+        images_dir = CONFIG["directories"]["images"]
+    else:
+        images_dir = "images"  # Default value
+        log(f"'images' not found in config directories, using default: {images_dir}", "⚠️")
+    
+    IMAGES_DIR = os.path.join(SCRIPT_DIR, "output", project_name, images_dir)
+    
+    # Create output directories if they don't exist
+    os.makedirs(SCENARIOS_DIR, exist_ok=True)
+    os.makedirs(VOICE_LINES_DIR, exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(IMAGES_DIR, exist_ok=True)
+    
+    log(f"Project: {project_name}", "📂")
+    log(f"Scenarios directory: {SCENARIOS_DIR}", "📂")
+    log(f"Voice lines directory: {VOICE_LINES_DIR}", "📂")
+    log(f"Output videos directory: {OUTPUT_DIR}", "📂")
+    log(f"Images directory: {IMAGES_DIR}", "📂")
 
 # ─────────────────────────────────────────────────────
 # 🔤 FONT HANDLING
@@ -844,6 +862,67 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
             # Use original duration from scenario
             slide_duration = slide['duration_seconds']
             log(f"No voice line for slide {i+1}, using original duration: {slide_duration}s", "📝")
+        
+        # Check if there's a generated image for this slide
+        image_filename = f"{scenario_name}_slide_{i+1}.png"
+        image_path = os.path.join(IMAGES_DIR, image_filename)
+        
+        if os.path.exists(image_path):
+            try:
+                # Load the image
+                log(f"Found image for slide {i+1}: {image_filename}", "🖼️")
+                image = Image.open(image_path)
+                
+                # Create an ImageClip from the image
+                image_clip = ImageClip(np.array(image))
+                
+                # Resize the image based on video orientation
+                if vertical:
+                    # For vertical videos (9:16), resize the image to cover the entire frame
+                    # First, get the aspect ratios
+                    video_aspect = target_resolution[0] / target_resolution[1]  # width / height
+                    image_aspect = image_clip.size[0] / image_clip.size[1]
+                    
+                    if image_aspect > video_aspect:
+                        # Image is wider than the video frame (relative to height)
+                        # Resize based on height to ensure full height coverage
+                        image_clip = image_clip.resize(height=target_resolution[1])
+                        log(f"Resizing image to cover full height: {target_resolution[1]}px", "🔍")
+                    else:
+                        # Image is taller than the video frame (relative to width)
+                        # Resize based on width to ensure full width coverage
+                        image_clip = image_clip.resize(width=target_resolution[0])
+                        log(f"Resizing image to cover full width: {target_resolution[0]}px", "🔍")
+                else:
+                    # For horizontal videos (16:9), resize to 100% of the height
+                    image_clip = image_clip.resize(height=target_resolution[1])
+                    log(f"Resizing image to fit horizontal video height: {target_resolution[1]}px", "🔍")
+                
+                # Create a background clip that's exactly the size of the video frame
+                bg_clip = ColorClip(
+                    size=target_resolution,
+                    color=(0, 0, 0),
+                    duration=slide_duration
+                ).set_opacity(0.5).set_start(current_time)
+                
+                # Add the background clip first
+                all_clips.append(bg_clip)
+                log(f"Added full-frame black background for image", "🎨")
+                
+                # Center the image in the frame
+                image_clip = image_clip.set_position(('center', 'center'))
+                
+                # Set the duration and start time
+                image_clip = image_clip.set_duration(slide_duration).set_start(current_time)
+                
+                # Add the image clip to the list of clips
+                all_clips.append(image_clip)
+                
+                log(f"Added image for slide {i+1} with duration {slide_duration:.2f}s starting at {current_time:.2f}s", "🖼️")
+            except Exception as e:
+                log(f"Error adding image for slide {i+1}: {str(e)}", "⚠️")
+                import traceback
+                traceback.print_exc()
         
         # Create text clips for this slide using the consistent font if enabled
         text_clips = create_text_clip(slide['text'], slide_duration, current_time, target_resolution, quality, scenario_font, slide.get('emoji'))
