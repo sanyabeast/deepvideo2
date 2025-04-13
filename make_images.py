@@ -18,21 +18,21 @@ Options:
 """
 
 import os
-import yaml
-import requests
-import re
-import shutil
-import argparse
-import random
 import sys
-import base64
 import json
 import uuid
 import time
+import yaml
+import base64
+import random
+import requests
+import argparse
+import websocket
 from pathlib import Path
 from PIL import Image
 import io
-import websocket
+import shutil
+import re
 
 # Define default workflow with placeholders as a raw multiline string
 DEFAULT_WORKFLOW = r'''{
@@ -98,26 +98,84 @@ DEFAULT_WORKFLOW = r'''{
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
 
-# ─────────────────────────────────────────────────────
-# 🎲 CONFIGURATION
-# ─────────────────────────────────────────────────────
-def log(message, emoji=None):
-    """Standardized logging function with consistent emoji spacing.
-    
-    Args:
-        message: The message to log
-        emoji: Optional emoji to prefix the message
-    """
-    if emoji:
-        # Ensure there's a space after the emoji
-        print(f"{emoji} {message}")
-    else:
-        print(message)
+# Global variables
+CONFIG = None
+COMFY_SERVER_ADDRESS = None
+COMFY_WORKFLOW = None
+STEPS = None
+SCENARIOS_DIR = None
+IMAGES_DIR = None
+CLIENT_ID = str(uuid.uuid4())
+DEBUG = False  # Set to True to enable verbose logging
+GENERATION_TIMEOUT = None
 
-def debug_log(message, emoji=None):
-    """Log message only if DEBUG mode is enabled."""
+# Progress tracking
+TOTAL_IMAGES = 0
+SUCCESSFUL_IMAGES = 0
+FAILED_IMAGES = 0
+START_TIME = None
+scenario_files = []
+scenario_file_index = 0
+
+# ─────────────────────────────────────────────────────
+# 🐍 UTILITIES
+# ─────────────────────────────────────────────────────
+def log(message, emoji="ℹ️"):
+    """Print a log message with an emoji."""
+    print(f"{emoji} {message}")
+
+def debug_log(message, emoji="🔍"):
+    """Print a debug log message if DEBUG is True."""
     if DEBUG:
-        log(message, emoji)
+        print(f"{emoji} {message}")
+
+def format_time(seconds):
+    """Format seconds into a human-readable time string."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    elif seconds < 3600:
+        minutes = seconds // 60
+        seconds %= 60
+        return f"{int(minutes)}m {int(seconds)}s"
+    else:
+        hours = seconds // 3600
+        seconds %= 3600
+        minutes = seconds // 60
+        return f"{int(hours)}h {int(minutes)}m"
+
+def update_progress(scenario_index, total_scenarios, slide_index, total_slides, success=True):
+    """Update and display progress information."""
+    global SUCCESSFUL_IMAGES, FAILED_IMAGES, START_TIME, TOTAL_IMAGES
+    
+    # Update counters
+    if success:
+        SUCCESSFUL_IMAGES += 1
+    else:
+        FAILED_IMAGES += 1
+    
+    # Calculate progress percentages
+    scenario_progress = ((scenario_index + 1) / total_scenarios) * 100
+    total_progress = ((SUCCESSFUL_IMAGES + FAILED_IMAGES) / TOTAL_IMAGES) * 100 if TOTAL_IMAGES > 0 else 0
+    
+    # Calculate time statistics
+    elapsed_time = time.time() - START_TIME
+    images_per_second = (SUCCESSFUL_IMAGES + FAILED_IMAGES) / elapsed_time if elapsed_time > 0 else 0
+    remaining_images = TOTAL_IMAGES - (SUCCESSFUL_IMAGES + FAILED_IMAGES)
+    estimated_time_remaining = remaining_images / images_per_second if images_per_second > 0 else 0
+    
+    # Create progress bar (20 characters wide)
+    progress_bar_length = 20
+    completed_length = int(total_progress / 100 * progress_bar_length)
+    progress_bar = "█" * completed_length + "░" * (progress_bar_length - completed_length)
+    
+    # Display progress information
+    print(f"\r📊 Progress: [{progress_bar}] {total_progress:.1f}% | "
+          f"Scenario: {scenario_index + 1}/{total_scenarios} | "
+          f"Slide: {slide_index + 1}/{total_slides} | "
+          f"Success: {SUCCESSFUL_IMAGES} | "
+          f"Failed: {FAILED_IMAGES} | "
+          f"Elapsed: {format_time(elapsed_time)} | "
+          f"ETA: {format_time(estimated_time_remaining)}", end="")
 
 def load_config(config_path=None):
     """Load configuration from YAML file."""
@@ -147,20 +205,15 @@ def load_config(config_path=None):
         log(f"Error parsing config file: {e}", "❌")
         sys.exit(1)
 
-# Global variables
-CONFIG = None
-COMFY_SERVER_ADDRESS = None
-COMFY_WORKFLOW = None
-STEPS = None
-SCENARIOS_DIR = None
-IMAGES_DIR = None
-CLIENT_ID = str(uuid.uuid4())
-DEBUG = False  # Set to True to enable verbose logging
-GENERATION_TIMEOUT = None
+def load_scenario(scenario_file):
+    """Load a scenario from a YAML file."""
+    try:
+        with open(scenario_file, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+    except Exception as e:
+        log(f"Error loading scenario file {scenario_file}: {str(e)}", "❌")
+        return None
 
-# ─────────────────────────────────────────────────────
-# 🐍 UTILITIES
-# ─────────────────────────────────────────────────────
 def ensure_dir_exists(directory):
     """Create directory if it doesn't exist."""
     Path(directory).mkdir(parents=True, exist_ok=True)
@@ -189,11 +242,6 @@ def get_scenario_files():
         if filename.endswith('.yaml'):
             scenario_files.append(os.path.join(scenarios_path, filename))
     return scenario_files
-
-def load_scenario(file_path):
-    """Load scenario from YAML file."""
-    with open(file_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
 
 def queue_prompt(prompt):
     """Queue a prompt to the ComfyUI server.
@@ -429,22 +477,23 @@ def get_images_from_websocket(prompt_id):
         log(f"Error getting images from websocket: {str(e)}", "❌")
         return None
 
-def generate_image(prompt_text, negative_prompt="", steps=20):
+def generate_image(prompt_text, negative_prompt="", steps=20, output_path=None):
     """Generate an image using ComfyUI API.
     
     Args:
         prompt_text: The text prompt for image generation
         negative_prompt: Optional negative prompt to guide what not to generate
         steps: Number of steps for generation
+        output_path: Path to save the generated image
         
     Returns:
-        Image data if successful, None otherwise
+        True if successful, False otherwise
     """
     log(f"Generating image with prompt: {prompt_text[:50]}{'...' if len(prompt_text) > 50 else ''}", "🎨")
     
     try:
         # Create a copy of the workflow template
-        workflow_str = DEFAULT_WORKFLOW
+        workflow_str = COMFY_WORKFLOW
         
         # Generate a random seed
         random_seed = random.randint(1, 2147483647)
@@ -471,13 +520,13 @@ def generate_image(prompt_text, negative_prompt="", steps=20):
         except json.JSONDecodeError as e:
             log(f"Error parsing workflow JSON: {str(e)}", "❌")
             debug_log(f"Workflow string: {workflow_str}", "📄")
-            return None
+            return False
         
         # Queue the prompt
         prompt_id = queue_prompt(workflow)
         if not prompt_id:
             log("Failed to queue prompt", "❌")
-            return None
+            return False
         
         debug_log(f"Prompt queued with ID: {prompt_id}", "✅")
         
@@ -485,14 +534,19 @@ def generate_image(prompt_text, negative_prompt="", steps=20):
         images = get_images_from_websocket(prompt_id)
         if not images:
             log("Failed to get images from ComfyUI", "❌")
-            return None
+            return False
         
         log("Image generated successfully", "✅")
-        return images
+        
+        # Save the image if output_path is provided
+        if output_path and images:
+            return save_image(images[0], output_path)
+        
+        return True
         
     except Exception as e:
         log(f"Error generating image: {str(e)}", "❌")
-        return None
+        return False
 
 def save_image(image_data, output_path):
     """Save image data to a file.
@@ -514,76 +568,71 @@ def save_image(image_data, output_path):
         log(f"Error saving image: {str(e)}", "❌")
         return False
 
-def process_scenario(scenario_file, force_regenerate=False, steps=None):
+def process_scenario(scenario_file, force=False):
     """Process a single scenario file and generate images for all slides.
     
     Args:
         scenario_file: Path to the scenario file
-        force_regenerate: Whether to regenerate existing images
-        steps: Number of steps for image generation (overrides config)
-    
+        force: Whether to force regeneration of existing images
+        
     Returns:
-        Number of images generated
+        Tuple of (number of images generated, number of slides processed)
     """
-    # Extract scenario name from filename
-    filename = os.path.basename(scenario_file)
-    scenario_name = os.path.splitext(filename)[0]
-    
-    # Load scenario data
+    # Load the scenario
     scenario = load_scenario(scenario_file)
+    if not scenario:
+        log(f"Failed to load scenario: {scenario_file}", "❌")
+        return 0, 0
     
-    log("\n" + "="*50)
-    log(f"Generating images for: {scenario['topic']}")
-    log("="*50)
+    # Get the scenario name
+    scenario_name = scenario.get("name", Path(scenario_file).stem)
+    log(f"Processing scenario: {scenario_name}", "📝")
     
-    # Get project name and create output directory
-    project_name = CONFIG.get("project_name", "DeepVideo2")
-    output_dir = os.path.join(PROJECT_DIR, "output", project_name, IMAGES_DIR)
-    ensure_dir_exists(output_dir)
+    # Get the slides
+    slides = scenario.get("slides", [])
+    total_slides = len(slides)
+    log(f"Found {total_slides} slides", "🔢")
     
-    # Use steps from args if provided, otherwise from config
-    steps_to_use = steps if steps is not None else STEPS
-    
-    # Get default negative prompt from config if available
-    default_negative_prompt = ""
-    if CONFIG and "images" in CONFIG and "default_negative_prompt" in CONFIG["images"]:
-        default_negative_prompt = CONFIG["images"]["default_negative_prompt"]
-    
-    # Process each slide
+    # Generate images for each slide
     images_generated = 0
-    for i, slide in enumerate(scenario["slides"]):
-        # Skip slides without background_image_description
-        if not slide.get("background_image_description"):
-            log(f"Slide {i+1}: No background image description, skipping", "⚠️")
+    for i, slide in enumerate(slides):
+        # Get the slide ID
+        slide_id = slide.get("id", i + 1)
+        
+        # Get the background image description
+        background_image = slide.get("background_image_description", "")
+        
+        # Skip if no background image is specified
+        if not background_image:
+            debug_log(f"Slide {slide_id}: No background image specified, skipping", "⏭️")
             continue
         
-        # Create output path for this slide's image
-        output_filename = f"{scenario_name}_slide_{i+1}.png"
-        output_path = os.path.join(output_dir, output_filename)
+        # Generate the output image path
+        output_image_path = os.path.join(IMAGES_DIR, f"{scenario_name}_slide_{slide_id}.png")
         
-        # Skip if image already exists and not forcing regeneration
-        if os.path.exists(output_path) and not force_regenerate:
-            log(f"Slide {i+1}: Image already exists, skipping", "ℹ️")
+        # Check if the image already exists
+        if os.path.exists(output_image_path) and not force:
+            debug_log(f"Slide {slide_id}: Image already exists, skipping", "⏭️")
+            update_progress(scenario_file_index, len(scenario_files), i, total_slides, True)
             continue
-        
-        # Get the prompt from the slide
-        prompt = slide["background_image_description"]
         
         # Generate the image
-        image_data = generate_image(prompt, default_negative_prompt, steps_to_use)
+        log(f"Slide {slide_id}: Generating image for prompt: {background_image[:50]}{'...' if len(background_image) > 50 else ''}", "🖼️")
+        negative_prompt = CONFIG["images"].get("default_negative_prompt", "")
+        steps = STEPS
         
-        if image_data:
-            # Save the image
-            if save_image(image_data[0], output_path):
-                images_generated += 1
-                log(f"Slide {i+1}: Image generated successfully", "✅")
-            else:
-                log(f"Slide {i+1}: Failed to save image", "❌")
+        success = generate_image(background_image, negative_prompt, steps, output_image_path)
+        
+        if success:
+            log(f"Slide {slide_id}: Generated image at {output_image_path}", "✅")
+            images_generated += 1
         else:
-            log(f"Slide {i+1}: Failed to generate image", "❌")
+            log(f"Slide {slide_id}: Failed to generate image", "❌")
+        
+        # Update progress
+        update_progress(scenario_file_index, len(scenario_files), i, total_slides, success)
     
-    log(f"Generated {images_generated} images for scenario: {scenario_name}", "🎉")
-    return images_generated
+    return images_generated, total_slides
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -598,15 +647,16 @@ def parse_arguments():
 def main():
     """Main function to process all scenarios."""
     global CONFIG, COMFY_SERVER_ADDRESS, COMFY_WORKFLOW, STEPS, SCENARIOS_DIR, IMAGES_DIR, DEBUG, GENERATION_TIMEOUT
+    global TOTAL_IMAGES, SUCCESSFUL_IMAGES, FAILED_IMAGES, START_TIME, scenario_file_index, scenario_files
     
     # Parse command line arguments
     args = parse_arguments()
     
+    # Load the config file
+    CONFIG = load_config(args.config)
+    
     # Set debug mode
     DEBUG = args.debug
-    
-    # Load configuration
-    CONFIG = load_config(args.config)
     
     # Set up global variables from config
     # Use default values if 'images' section is not found
@@ -616,7 +666,7 @@ def main():
             "comfy_server_address": "127.0.0.1:8188",
             "steps": 20,
             "default_negative_prompt": "text, watermark, signature, blurry, distorted, low resolution, poorly drawn, bad anatomy, deformed, disfigured, out of frame, cropped",
-            "workflow": json.dumps(DEFAULT_WORKFLOW),
+            "workflow": DEFAULT_WORKFLOW,
             "generation_timeout": 60  # Default timeout in seconds
         }
     
@@ -626,10 +676,11 @@ def main():
     # Set workflow (default to the one in the config if available)
     if "workflow" in CONFIG["images"]:
         COMFY_WORKFLOW = CONFIG["images"]["workflow"]
+        debug_log("Using workflow from config", "✅")
     else:
         # Use a default workflow if not specified
         log("Warning: No workflow specified in config, using default workflow", "⚠️")
-        COMFY_WORKFLOW = json.dumps(DEFAULT_WORKFLOW)
+        COMFY_WORKFLOW = DEFAULT_WORKFLOW
     
     # Set steps (CLI args take priority over config)
     config_steps = CONFIG["images"].get("steps", 20)
@@ -641,16 +692,25 @@ def main():
     # Set directories
     if "directories" not in CONFIG:
         log("Warning: 'directories' section not found in config file, using default values", "⚠️")
-        CONFIG["directories"] = {
-            "scenarios": "scenarios",
-            "images": "images"
-        }
-    elif "images" not in CONFIG["directories"]:
-        log("Warning: 'images' directory not specified in config, using default 'images'", "⚠️")
-        CONFIG["directories"]["images"] = "images"
+        CONFIG["directories"] = {}
     
-    SCENARIOS_DIR = CONFIG["directories"]["scenarios"]
-    IMAGES_DIR = CONFIG["directories"]["images"]
+    # Get project name
+    project_name = CONFIG.get("project_name", "DeepVideo2")
+    
+    # Set up directories
+    output_dir = os.path.join(PROJECT_DIR, "output", project_name)
+    ensure_dir_exists(output_dir)
+    
+    # Set scenarios directory
+    SCENARIOS_DIR = os.path.join(output_dir, "scenarios")
+    ensure_dir_exists(SCENARIOS_DIR)
+    
+    # Set images directory
+    images_dir_name = CONFIG["directories"].get("images", "images")
+    IMAGES_DIR = os.path.join(output_dir, images_dir_name)
+    ensure_dir_exists(IMAGES_DIR)
+    if not os.path.exists(IMAGES_DIR):
+        log(f"Warning: 'images' directory not specified in config, using default '{images_dir_name}'", "⚠️")
     
     # Log configuration
     log("\n" + "="*50)
@@ -671,26 +731,46 @@ def main():
     
     log(f"Found {len(scenario_files)} scenario files", "📊")
     
-    # Process scenarios
-    total_images_generated = 0
-    scenarios_processed = 0
+    # Initialize progress tracking
+    START_TIME = time.time()
+    SUCCESSFUL_IMAGES = 0
+    FAILED_IMAGES = 0
+    TOTAL_IMAGES = 0
     
-    # Determine how many scenarios to process
-    max_scenarios = args.num if args.num >= 0 else len(scenario_files)
-    
+    # Count total number of images to generate
     for scenario_file in scenario_files:
-        if max_scenarios > 0 and scenarios_processed >= max_scenarios:
-            break
-        
-        images_generated = process_scenario(scenario_file, args.force, args.steps)
-        total_images_generated += images_generated
-        scenarios_processed += 1
-        
-        log(f"Progress: {scenarios_processed}/{max_scenarios if max_scenarios < len(scenario_files) else len(scenario_files)} scenarios processed", "📊")
+        with open(scenario_file, "r", encoding="utf-8") as f:
+            scenario = yaml.safe_load(f)
+        slides = scenario.get("slides", [])
+        for slide in slides:
+            if slide.get("background_image_description", ""):
+                TOTAL_IMAGES += 1
     
-    log("\n" + "="*50)
-    log(f"Total: {total_images_generated} images generated for {scenarios_processed} scenarios", "🎉")
-    log("="*50)
+    log(f"Total images to process: {TOTAL_IMAGES}", "🔢")
+    
+    # Process each scenario
+    total_generated = 0
+    total_slides = 0
+    
+    for scenario_file_index, scenario_file in enumerate(scenario_files):
+        images_generated, slides_processed = process_scenario(scenario_file, args.force)
+        total_generated += images_generated
+        total_slides += slides_processed
+        
+        # Print progress after each scenario
+        scenario_name = Path(scenario_file).stem
+        log(f"Generated {images_generated} images for scenario: {scenario_name}", "🎉")
+        print()  # Add a blank line for readability
+    
+    # Calculate final statistics
+    elapsed_time = time.time() - START_TIME
+    images_per_second = total_generated / elapsed_time if elapsed_time > 0 else 0
+    
+    # Print summary
+    print("\n" + "=" * 50)
+    log(f"Total: {SUCCESSFUL_IMAGES} images generated successfully ({FAILED_IMAGES} failed) for {len(scenario_files)} scenarios", "🎉")
+    log(f"Time taken: {format_time(elapsed_time)} ({images_per_second:.2f} images/second)", "⏱️")
+    print("=" * 50)
 
 if __name__ == "__main__":
     try:
