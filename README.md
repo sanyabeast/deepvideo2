@@ -26,6 +26,8 @@ DeepVideo2 is a Python-based video generation system that transforms YAML scenar
 - **Configurable Timing**: Set custom intro and outro delays for professional-looking videos
 - **Automatic Cleanup**: Remove temporary files after video generation
 - **ComfyUI Image Generation**: Generate background images for scenarios using ComfyUI
+- **Intelligent Image Handling**: Resize and position images to properly cover the entire video frame
+- **Enhanced Text Visibility**: Semi-transparent background behind text for improved readability
 
 ## Installation
 
@@ -145,6 +147,22 @@ images:
       ...
     }
 ```
+
+## Image Handling in Videos
+
+DeepVideo2 intelligently handles background images in videos to ensure professional results:
+
+1. **Aspect Ratio Awareness**: Images are resized based on their aspect ratio relative to the video frame:
+   - For wider images: Resized based on height to ensure full height coverage
+   - For taller images: Resized based on width to ensure full width coverage
+
+2. **Full Frame Coverage**: All images are sized to completely fill the video frame, eliminating empty spaces
+
+3. **Enhanced Text Visibility**: A semi-transparent black background is placed behind text to ensure readability regardless of the background image content
+
+4. **Consistent Positioning**: Images are centered in the frame for visual consistency across slides
+
+5. **Graceful Fallbacks**: Slides without background image descriptions are handled gracefully, with detailed logging to identify which slides are missing images
 
 ## Usage
 
