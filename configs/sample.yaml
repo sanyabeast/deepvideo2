@@ -46,7 +46,7 @@ video:
 # Image Generation Configuration
 images:
   comfy_server_address: "127.0.0.1:8188"  # URL to the ComfyUI server
-  steps: 20  # Number of steps for image generation
+  steps: 12  # Number of steps for image generation
   default_negative_prompt: "text, watermark, signature, blurry, distorted, low resolution, poorly drawn, bad anatomy, deformed, disfigured, out of frame, cropped"  # Default negative prompt
   generation_timeout: 60  # Maximum wait time in seconds for image generation
   # The workflow is a JSON representation of the ComfyUI workflow
@@ -58,62 +58,166 @@ images:
   # {STEPS} - Will be replaced with the steps value
   workflow: |
     {
+      "5": {
+        "inputs": {
+          "width": 1024,
+          "height": 1024,
+          "batch_size": 1
+        },
+        "class_type": "EmptyLatentImage",
+        "_meta": {
+          "title": "Empty Latent Image"
+        }
+      },
       "6": {
         "inputs": {
           "text": "{PROMPT}",
-          "clip": [ "30", 1 ]
+          "clip": [
+            "11",
+            0
+          ]
         },
         "class_type": "CLIPTextEncode",
-        "_meta": { "title": "CLIP Text Encode (Positive Prompt)" }
+        "_meta": {
+          "title": "CLIP Text Encode (Prompt)"
+        }
       },
       "8": {
-        "inputs": { "samples": [ "31", 0 ], "vae": [ "30", 2 ] },
+        "inputs": {
+          "samples": [
+            "13",
+            0
+          ],
+          "vae": [
+            "10",
+            0
+          ]
+        },
         "class_type": "VAEDecode",
-        "_meta": { "title": "VAE Decode" }
+        "_meta": {
+          "title": "VAE Decode"
+        }
       },
       "9": {
-        "inputs": { "filename_prefix": "flux/image", "images": [ "8", 0 ] },
+        "inputs": {
+          "filename_prefix": "flux/image",
+          "images": [
+            "8",
+            0
+          ]
+        },
         "class_type": "SaveImage",
-        "_meta": { "title": "Save Image" }
+        "_meta": {
+          "title": "Save Image"
+        }
       },
-      "27": {
-        "inputs": { "width": 1024, "height": 1024, "batch_size": 1 },
-        "class_type": "EmptySD3LatentImage",
-        "_meta": { "title": "EmptySD3LatentImage" }
-      },
-      "30": {
-        "inputs": { "ckpt_name": "flux.1d-fp8.safetensors" },
-        "class_type": "CheckpointLoaderSimple",
-        "_meta": { "title": "Load Checkpoint" }
-      },
-      "31": {
+      "10": {
         "inputs": {
-          "seed": {SEED},
-          "steps": {STEPS},
-          "cfg": 1,
-          "sampler_name": "euler",
+          "vae_name": "ae.safetensors"
+        },
+        "class_type": "VAELoader",
+        "_meta": {
+          "title": "Load VAE"
+        }
+      },
+      "11": {
+        "inputs": {
+          "clip_name1": "t5xxl-fp8-e4m3fn.safetensors",
+          "clip_name2": "clip-l.safetensors",
+          "type": "flux",
+          "device": "default"
+        },
+        "class_type": "DualCLIPLoader",
+        "_meta": {
+          "title": "DualCLIPLoader"
+        }
+      },
+      "12": {
+        "inputs": {
+          "unet_name": "flux.1s-fp8.safetensors",
+          "weight_dtype": "default"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+          "title": "Load Diffusion Model"
+        }
+      },
+      "13": {
+        "inputs": {
+          "noise": [
+            "25",
+            0
+          ],
+          "guider": [
+            "22",
+            0
+          ],
+          "sampler": [
+            "16",
+            0
+          ],
+          "sigmas": [
+            "17",
+            0
+          ],
+          "latent_image": [
+            "5",
+            0
+          ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+          "title": "SamplerCustomAdvanced"
+        }
+      },
+      "16": {
+        "inputs": {
+          "sampler_name": "euler"
+        },
+        "class_type": "KSamplerSelect",
+        "_meta": {
+          "title": "KSamplerSelect"
+        }
+      },
+      "17": {
+        "inputs": {
           "scheduler": "simple",
+          "steps": {STEPS},
           "denoise": 1,
-          "model": [ "30", 0 ],
-          "positive": [ "35", 0 ],
-          "negative": [ "33", 0 ],
-          "latent_image": [ "27", 0 ]
+          "model": [
+            "12",
+            0
+          ]
         },
-        "class_type": "KSampler",
-        "_meta": { "title": "KSampler" }
+        "class_type": "BasicScheduler",
+        "_meta": {
+          "title": "BasicScheduler"
+        }
       },
-      "33": {
+      "22": {
         "inputs": {
-          "text": "{NEGATIVE_PROMPT}",
-          "clip": [ "30", 1 ]
+          "model": [
+            "12",
+            0
+          ],
+          "conditioning": [
+            "6",
+            0
+          ]
         },
-        "class_type": "CLIPTextEncode",
-        "_meta": { "title": "CLIP Text Encode (Negative Prompt)" }
+        "class_type": "BasicGuider",
+        "_meta": {
+          "title": "BasicGuider"
+        }
       },
-      "35": {
-        "inputs": { "guidance": 3.5, "conditioning": [ "6", 0 ] },
-        "class_type": "FluxGuidance",
-        "_meta": { "title": "FluxGuidance" }
+      "25": {
+        "inputs": {
+          "noise_seed": {SEED}
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+          "title": "RandomNoise"
+        }
       }
     }
 

@@ -11,7 +11,7 @@ Usage:
 
 Options:
     -c, --config CONFIG_FILE    Path to the configuration file
-    -s, --steps STEPS           Number of steps for image generation (default: 20)
+    -s, --steps STEPS           Number of steps for image generation (default: 12)
     -n, --num NUM_SCENARIOS     Number of scenarios to process (default: -1, all)
     -f, --force                 Force regeneration of all images
     -d, --debug                 Enable debug logging
@@ -36,64 +36,168 @@ import re
 
 # Define default workflow with placeholders as a raw multiline string
 DEFAULT_WORKFLOW = r'''{
-    "6": {
+      "5": {
         "inputs": {
-            "text": "{PROMPT}",
-            "clip": [ "30", 1 ]
+          "width": 1024,
+          "height": 1024,
+          "batch_size": 1
+        },
+        "class_type": "EmptyLatentImage",
+        "_meta": {
+          "title": "Empty Latent Image"
+        }
+      },
+      "6": {
+        "inputs": {
+          "text": "{PROMPT}",
+          "clip": [
+            "11",
+            0
+          ]
         },
         "class_type": "CLIPTextEncode",
-        "_meta": { "title": "CLIP Text Encode (Positive Prompt)" }
-    },
-    "8": {
-        "inputs": { "samples": [ "31", 0 ], "vae": [ "30", 2 ] },
+        "_meta": {
+          "title": "CLIP Text Encode (Prompt)"
+        }
+      },
+      "8": {
+        "inputs": {
+          "samples": [
+            "13",
+            0
+          ],
+          "vae": [
+            "10",
+            0
+          ]
+        },
         "class_type": "VAEDecode",
-        "_meta": { "title": "VAE Decode" }
-    },
-    "9": {
-        "inputs": { "filename_prefix": "flux/image", "images": [ "8", 0 ] },
+        "_meta": {
+          "title": "VAE Decode"
+        }
+      },
+      "9": {
+        "inputs": {
+          "filename_prefix": "flux/image",
+          "images": [
+            "8",
+            0
+          ]
+        },
         "class_type": "SaveImage",
-        "_meta": { "title": "Save Image" }
-    },
-    "27": {
-        "inputs": { "width": 1024, "height": 1024, "batch_size": 1 },
-        "class_type": "EmptySD3LatentImage",
-        "_meta": { "title": "EmptySD3LatentImage" }
-    },
-    "30": {
-        "inputs": { "ckpt_name": "flux.1d-fp8.safetensors" },
-        "class_type": "CheckpointLoaderSimple",
-        "_meta": { "title": "Load Checkpoint" }
-    },
-    "31": {
+        "_meta": {
+          "title": "Save Image"
+        }
+      },
+      "10": {
         "inputs": {
-            "seed": {SEED},
-            "steps": {STEPS},
-            "cfg": 1,
-            "sampler_name": "euler",
-            "scheduler": "simple",
-            "denoise": 1,
-            "model": [ "30", 0 ],
-            "positive": [ "35", 0 ],
-            "negative": [ "33", 0 ],
-            "latent_image": [ "27", 0 ]
+          "vae_name": "ae.safetensors"
         },
-        "class_type": "KSampler",
-        "_meta": { "title": "KSampler" }
-    },
-    "33": {
+        "class_type": "VAELoader",
+        "_meta": {
+          "title": "Load VAE"
+        }
+      },
+      "11": {
         "inputs": {
-            "text": "{NEGATIVE_PROMPT}",
-            "clip": [ "30", 1 ]
+          "clip_name1": "t5xxl-fp8-e4m3fn.safetensors",
+          "clip_name2": "clip-l.safetensors",
+          "type": "flux",
+          "device": "default"
         },
-        "class_type": "CLIPTextEncode",
-        "_meta": { "title": "CLIP Text Encode (Negative Prompt)" }
-    },
-    "35": {
-        "inputs": { "guidance": 3.5, "conditioning": [ "6", 0 ] },
-        "class_type": "FluxGuidance",
-        "_meta": { "title": "FluxGuidance" }
-    }
-}'''
+        "class_type": "DualCLIPLoader",
+        "_meta": {
+          "title": "DualCLIPLoader"
+        }
+      },
+      "12": {
+        "inputs": {
+          "unet_name": "flux.1s-fp8.safetensors",
+          "weight_dtype": "default"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+          "title": "Load Diffusion Model"
+        }
+      },
+      "13": {
+        "inputs": {
+          "noise": [
+            "25",
+            0
+          ],
+          "guider": [
+            "22",
+            0
+          ],
+          "sampler": [
+            "16",
+            0
+          ],
+          "sigmas": [
+            "17",
+            0
+          ],
+          "latent_image": [
+            "5",
+            0
+          ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+          "title": "SamplerCustomAdvanced"
+        }
+      },
+      "16": {
+        "inputs": {
+          "sampler_name": "euler"
+        },
+        "class_type": "KSamplerSelect",
+        "_meta": {
+          "title": "KSamplerSelect"
+        }
+      },
+      "17": {
+        "inputs": {
+          "scheduler": "simple",
+          "steps": {STEPS},
+          "denoise": 1,
+          "model": [
+            "12",
+            0
+          ]
+        },
+        "class_type": "BasicScheduler",
+        "_meta": {
+          "title": "BasicScheduler"
+        }
+      },
+      "22": {
+        "inputs": {
+          "model": [
+            "12",
+            0
+          ],
+          "conditioning": [
+            "6",
+            0
+          ]
+        },
+        "class_type": "BasicGuider",
+        "_meta": {
+          "title": "BasicGuider"
+        }
+      },
+      "25": {
+        "inputs": {
+          "noise_seed": {SEED}
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+          "title": "RandomNoise"
+        }
+      }
+    }'''
 
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -480,7 +584,7 @@ def get_images_from_websocket(prompt_id):
         log(f"Error getting images from websocket: {str(e)}", "❌")
         return None
 
-def generate_image(prompt_text, negative_prompt="", steps=20, output_path=None):
+def generate_image(prompt_text, negative_prompt="", steps=12, output_path=None):
     """Generate an image using ComfyUI API.
     
     Args:
@@ -668,7 +772,7 @@ def main():
         log("Warning: 'images' section not found in config file, using default values", "⚠️")
         CONFIG["images"] = {
             "comfy_server_address": "127.0.0.1:8188",
-            "steps": 20,
+            "steps": 12,
             "default_negative_prompt": "text, watermark, signature, blurry, distorted, low resolution, poorly drawn, bad anatomy, deformed, disfigured, out of frame, cropped",
             "workflow": DEFAULT_WORKFLOW,
             "generation_timeout": 60  # Default timeout in seconds
@@ -687,7 +791,7 @@ def main():
         COMFY_WORKFLOW = DEFAULT_WORKFLOW
     
     # Set steps (CLI args take priority over config)
-    config_steps = CONFIG["images"].get("steps", 20)
+    config_steps = CONFIG["images"].get("steps", 12)
     STEPS = args.steps if args.steps is not None else config_steps
     
     # Set generation timeout
