@@ -25,6 +25,7 @@ DeepVideo2 is a Python-based video generation system that transforms YAML scenar
 - **Automatic Video Naming**: Generate descriptive filenames for background videos based on visual content
 - **Configurable Timing**: Set custom intro and outro delays for professional-looking videos
 - **Automatic Cleanup**: Remove temporary files after video generation
+- **ComfyUI Image Generation**: Generate background images for scenarios using ComfyUI
 
 ## Installation
 
@@ -75,6 +76,7 @@ deepvideo2/
 ├── make.py                # Master script that runs the entire pipeline
 ├── make_scenarios.py      # Script to generate scenario files
 ├── make_voice_lines.py    # Script to generate voice lines for scenarios
+├── make_images.py         # Script to generate images for scenarios using ComfyUI
 ├── make_videos.py         # Script to generate videos from scenarios and voice lines
 ├── clean.py               # Utility to reset or clean generated content
 ├── name_videos.py         # Script to analyze and name video files based on content
@@ -122,79 +124,55 @@ voice:
     threshold_db: -50  # Threshold in dB below which audio is considered silence
 ```
 
-## Usage
-
-### Configuration
-
-Create a configuration file in the `configs/` directory (e.g., `configs/motivation.yaml`). The filename (without extension) will be used as the project name:
+### Image Generation Configuration
 
 ```yaml
-# LLM Configuration
-llm:
-  default_model: "meta-llama-3.1-8b-instruct"
-  seed: 0  # Will be randomized at runtime if not specified
-
-# Voice Generation Configuration
-voice:
-  zonos_tts_server: "http://localhost:5001/generate"
-  voice_samples:
-    - "path/to/voice/sample1.mp3"
-    - "path/to/voice/sample2.mp3"
-  speech_rate: "15"
-  normalization:
-    target_db: -20.0  # Target dB level for audio normalization
-    enabled: true     # Whether to automatically normalize generated voice lines
-  silence_trimming:
-    enabled: true     # Whether to trim silence from the end of voice lines
-    max_silence_sec: 1.0  # Maximum silence to keep at the end in seconds
-    threshold_db: -50  # Threshold in dB below which audio is considered silence
-
-# Video Generation Configuration
-video:
-  imagemagick_binary: "path/to/magick.exe"
-  background_music_volume: 0.2  # Volume multiplier for background music
-  voice_narration_volume: 1.0   # Volume multiplier for voice narration
-  use_consistent_font: true     # Use the same font for all slides in a scenario
-  intro_delay: 1.0              # Delay in seconds before the first slide appears
-  outro_delay: 1.0              # Delay in seconds after the last slide before the video ends
-  emoji_enabled: true           # Whether to render emojis in videos
-  emoji_font: "lib/noto_sans_emoji.ttf"  # Path to emoji font file (relative to project root)
-  emoji_scale: 1.5              # Scale factor for emoji size (1.0 = normal, 1.5 = 50% larger)
-  emoji_rotation:
-    enabled: true               # Whether to randomly rotate emojis
-    min_angle: -30              # Minimum rotation angle in degrees
-    max_angle: 30               # Maximum rotation angle in degrees
-
-# Media Options
-media_options:
-  music_files_count: 10  # Number of music files to show in scenario generation
-  video_files_count: 10  # Number of video files to show in scenario generation
+images:
+  comfy_server_address: "127.0.0.1:8188"  # ComfyUI server address
+  steps: 20                               # Default steps for image generation
+  default_negative_prompt: "text, watermark, signature, blurry, distorted, low resolution"  # Default negative prompt
+  workflow: |                             # ComfyUI workflow JSON with placeholders
+    {
+      "6": {
+        "inputs": {
+          "text": "{PROMPT}",
+          "clip": [ "30", 1 ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": { "title": "CLIP Text Encode (Positive Prompt)" }
+      },
+      ...
+    }
 ```
 
-You can use the provided `configs/sample.yaml` as a template.
+## Usage
+
+### Setting Up ComfyUI for Image Generation
+
+1. **Install ComfyUI**:
+   - Follow the installation instructions at [ComfyUI GitHub repository](https://github.com/comfyanonymous/ComfyUI)
+
+2. **Enable Developer Mode in ComfyUI**:
+   - Open ComfyUI in your browser (typically at http://127.0.0.1:8188)
+   - Click on the settings icon (gear) in the top-right corner
+   - Enable "Developer mode" in the settings panel
+
+3. **Create and Export Your Workflow**:
+   - Build your desired image generation workflow in ComfyUI
+   - Right-click on the background and select "Export" → "Save API format"
+   - Save the JSON file
+
+4. **Add Placeholders to Your Workflow**:
+   - Open the exported JSON file in a text editor
+   - Replace the prompt text with `{PROMPT}`
+   - Replace the negative prompt text with `{NEGATIVE_PROMPT}`
+   - Replace the seed value with `{SEED}` (without quotes)
+   - Replace the steps value with `{STEPS}` (without quotes)
+
+5. **Add the Workflow to Your Config**:
+   - Copy the modified JSON into your project's config file under the `images.workflow` key
 
 ### Running the Pipeline
-
-The easiest way to run the entire pipeline is to use the master script:
-
-```
-python make.py -c configs/your_project.yaml -n 5
-```
-
-This will:
-1. Check how many scenarios already exist for your project
-2. Generate new scenarios if needed to reach the target number
-3. Generate voice lines for all scenarios
-4. Generate videos for all scenarios
-
-Options:
-- `-c, --config`: Path to the configuration file (required)
-- `-n, --num`: Target number of videos to generate (default: 1)
-- `-q, --quality`: Quality factor for rendering (0.1-1.0, default: 1.0)
-
-### Individual Steps
-
-If you prefer to run each step separately:
 
 #### 1. Generate Scenarios
 
@@ -218,7 +196,22 @@ Options:
 - `-s, --scenario`: Specific scenario file to process (optional)
 - `-f, --force`: Force regeneration of existing voice lines (optional)
 
-#### 3. Generate Videos
+#### 3. Generate Images
+
+Generate background images for each slide in your scenarios:
+
+```bash
+python make_images.py -c configs/your_config.yaml
+```
+
+Options:
+- `-c, --config`: Path to the configuration file (required)
+- `-n, --num`: Number of scenarios to process (optional)
+- `-s, --steps`: Override steps from config (optional)
+- `-f, --force`: Force regeneration of existing images (optional)
+- `-d, --debug`: Enable detailed debug logging (optional)
+
+#### 4. Generate Videos
 
 ```
 python make_videos.py -c configs/your_project.yaml
