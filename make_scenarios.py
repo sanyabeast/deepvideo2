@@ -7,41 +7,15 @@ import re
 import argparse
 import sys
 
+# Import configuration utilities
+from utils.config_utils import load_config
+
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
 
 # ─────────────────────────────────────────────────────
 # 🎲 CONFIGURATION
 # ─────────────────────────────────────────────────────
-def load_config(config_path=None):
-    """Load configuration from YAML file."""
-    if config_path is None:
-        print("❌ Error: No config file specified.")
-        print("💡 Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml")
-        sys.exit(1)
-    
-    try:
-        print(f"DEBUG: Loading config from: {config_path}")
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        
-        # Extract project name from config filename if not specified
-        if 'project_name' not in config:
-            # Get the filename without extension
-            config_filename = os.path.basename(config_path)
-            config_name = os.path.splitext(config_filename)[0]
-            config['project_name'] = config_name
-            print(f"ℹ️ Using config filename '{config_name}' as project name")
-        
-        print(f"DEBUG: Final project_name in config: {config.get('project_name')}")
-        return config
-    except FileNotFoundError:
-        print(f"❌ Error: Config file not found: {config_path}")
-        print(f"💡 Hint: Make sure the config file exists. Example: configs/sample.yaml")
-        sys.exit(1)
-    except yaml.YAMLError as e:
-        print(f"❌ Error parsing config file: {e}")
-        sys.exit(1)
 
 # Global variables
 CONFIG = None

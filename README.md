@@ -21,6 +21,8 @@ DeepVideo2 is a Python-based video generation system that transforms YAML scenar
 - **Text Preprocessing**: Clean up text before sending to TTS to improve voice quality
 - **Intelligent Workflow**: Generate only the number of scenarios needed to reach your target
 - **Voice Line Generation**: Create voice narration for each slide with emotion control
+- **Multiple TTS Providers**: Support for both Zonos and Orpheus TTS systems
+- **Voice Line Processing**: Trim voice line endings to prevent audio artifacts
 - **Flexible Configuration**: Use project-specific configuration files in the configs/ directory
 - **Automatic Video Naming**: Generate descriptive filenames for background videos based on visual content
 - **Configurable Timing**: Set custom intro and outro delays for professional-looking videos
@@ -112,18 +114,33 @@ video:
 
 ```yaml
 voice:
-  zonos_tts_server: "http://localhost:5001/generate"  # URL of the Zonos TTS server
-  voice_samples:
-    - "C:\\path\\to\\voice\\sample1.mp3"  # Path to voice sample files
-    - "C:\\path\\to\\voice\\sample2.mp3"
-  speech_rate: "15"  # Speech rate for TTS (higher = faster)
-  normalization:
-    target_db: -20.0  # Target dB level for audio normalization
-    enabled: true     # Whether to automatically normalize generated voice lines
-  silence_trimming:
-    enabled: true     # Whether to trim silence from the end of voice lines
-    max_silence_sec: 1.0  # Maximum silence to keep at the end in seconds
-    threshold_db: -50  # Threshold in dB below which audio is considered silence
+  # TTS provider configuration ("zonos" or "orpheus")
+  provider: "orpheus"
+  
+  # Zonos provider settings
+  zonos_settings:
+    tts_server: "http://localhost:5001/generate"  # URL of the Zonos TTS server
+    speech_rate: "15"  # Speech rate (higher = faster)
+    voice_samples:
+      - "C:\\path\\to\\voice\\sample1.mp3"  # Path to voice sample files
+      - "C:\\path\\to\\voice\\sample2.mp3"
+  
+  # Orpheus provider settings
+  orpheus_settings:
+    tts_server: "http://localhost:5005/v1/audio/speech"  # URL of the Orpheus TTS server
+    model: "orpheus"  # Model name
+    voice_presets: ["leah", "dan", "leo", "jess"]  # Available voice presets
+    speed: 1  # Speed factor (0.1 to 1.0, lower is slower)
+  
+  # Audio post-processing settings
+  postprocessing:
+    normalization:
+      target_db: -20.0  # Target dB level for audio normalization
+      enabled: true     # Whether to automatically normalize generated voice lines
+    silence_trimming:
+      enabled: true     # Whether to trim silence from the end of voice lines
+      max_silence_sec: 1.0  # Maximum silence to keep at the end in seconds
+      threshold_db: -50  # Threshold in dB below which audio is considered silence
 ```
 
 ### Image Generation Configuration

@@ -16,6 +16,9 @@ import numpy as np
 from pilmoji import Pilmoji
 import cv2
 
+# Import configuration utilities
+from utils.config_utils import load_config
+
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -35,33 +38,7 @@ def log(message, emoji=None):
     else:
         print(message)
 
-def load_config(config_path=None):
-    """Load configuration from YAML file."""
-    if config_path is None:
-        log("Error: No config file specified.", "❌")
-        log("Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml", "💡")
-        sys.exit(1)
-    
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        
-        # Extract project name from config filename if not specified
-        if 'project_name' not in config:
-            # Get the filename without extension
-            config_filename = os.path.basename(config_path)
-            config_name = os.path.splitext(config_filename)[0]
-            config['project_name'] = config_name
-            log(f"Using config filename '{config_name}' as project name", "ℹ️")
-        
-        return config
-    except FileNotFoundError:
-        log(f"Error: Config file not found: {config_path}", "❌")
-        log(f"Hint: Make sure the config file exists. Example: configs/sample.yaml", "💡")
-        sys.exit(1)
-    except yaml.YAMLError as e:
-        log(f"Error parsing config file: {e}", "❌")
-        sys.exit(1)
+
 
 # Global variables
 CONFIG = None
@@ -172,9 +149,9 @@ def get_random_font():
 def get_emoji_font():
     """Get a font for emoji rendering."""
     # Use emoji font path from config if available, otherwise use default
-    if CONFIG and "video" in CONFIG and "emoji_font" in CONFIG["video"]:
-        emoji_font_path = os.path.join(PROJECT_DIR, CONFIG["video"]["emoji_font"])
-        log(f"Using emoji font from config: {CONFIG['video']['emoji_font']}", "🔤")
+    if CONFIG and "video" in CONFIG and "emoji" in CONFIG["video"] and "font" in CONFIG["video"]["emoji"]:
+        emoji_font_path = os.path.join(PROJECT_DIR, CONFIG["video"]["emoji"]["font"])
+        log(f"Using emoji font from config: {CONFIG['video']['emoji']['font']}", "🔤")
     else:
         # Fallback to default path
         emoji_font_path = os.path.join(PROJECT_DIR, "lib", "noto_sans_emoji.ttf")
@@ -374,8 +351,8 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
     
     # Check if emoji rendering is enabled in config (default to true if not specified)
     emoji_enabled = True
-    if CONFIG and "video" in CONFIG and "emoji_enabled" in CONFIG["video"]:
-        emoji_enabled = bool(CONFIG["video"]["emoji_enabled"])
+    if CONFIG and "video" in CONFIG and "emoji" in CONFIG["video"] and "enabled" in CONFIG["video"]["emoji"]:
+        emoji_enabled = bool(CONFIG["video"]["emoji"]["enabled"])
     
     # If emoji rendering is disabled, clear the slide emoji
     if not emoji_enabled:
@@ -486,8 +463,8 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
     
     # Get emoji scale factor from config (default to 1.5 if not specified)
     emoji_scale = 1.5
-    if CONFIG and "video" in CONFIG and "emoji_scale" in CONFIG["video"]:
-        emoji_scale = float(CONFIG["video"]["emoji_scale"])
+    if CONFIG and "video" in CONFIG and "emoji" in CONFIG["video"] and "scale" in CONFIG["video"]["emoji"]:
+        emoji_scale = float(CONFIG["video"]["emoji"]["scale"])
         log(f"Using emoji scale from config: {emoji_scale}", "🔍")
     
     # Get emoji rotation settings from config
@@ -495,8 +472,8 @@ def create_text_clip(text, duration, start_time, video_size, quality=1.0, font=N
     min_angle = -30
     max_angle = 30
     
-    if CONFIG and "video" in CONFIG and "emoji_rotation" in CONFIG["video"]:
-        rotation_config = CONFIG["video"]["emoji_rotation"]
+    if CONFIG and "video" in CONFIG and "emoji" in CONFIG["video"] and "rotation" in CONFIG["video"]["emoji"]:
+        rotation_config = CONFIG["video"]["emoji"]["rotation"]
         if isinstance(rotation_config, dict):
             if "enabled" in rotation_config:
                 rotation_enabled = bool(rotation_config["enabled"])
@@ -778,9 +755,10 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
             # Load voice line and set its start time
             try:
                 voice_clip = AudioFileClip(voice_line_path)
-                # Add a small buffer (0.5s) to ensure text stays visible after narration
-                slide_duration = voice_clip.duration + 0.5
-                log(f"Found voice line for slide {i+1}: {slide_duration:.2f}s", "🔊")
+                # Add a configurable delay after narration to ensure text stays visible
+                voice_line_delay = CONFIG["video"].get("voice_line_delay", 0.5)
+                slide_duration = voice_clip.duration + voice_line_delay
+                log(f"Found voice line for slide {i+1}: {slide_duration:.2f}s (delay: {voice_line_delay:.1f}s)", "🔊")
             except Exception as e:
                 log(f"Error reading voice line {voice_line_filename}: {str(e)}", "⚠️")
                 slide_duration = slide['duration_seconds']
@@ -846,15 +824,19 @@ def generate_video(scenario, scenario_path, vertical=True, quality=1.0, use_voic
             # Load voice line and set its start time
             try:
                 voice_clip = AudioFileClip(voice_line_path)
+                # Trim 0.05 seconds from the end to prevent clicking artifacts
+                if voice_clip.duration > 0.1:  # Only trim if clip is long enough
+                    voice_clip = voice_clip.subclip(0, voice_clip.duration - 0.05)
                 # Set volume for voice clip
                 voice_clip = voice_clip.volumex(CONFIG["video"].get("voice_narration_volume", 1.0))
                 # Set the start time for this voice clip
                 voice_clip = voice_clip.set_start(current_time)
                 # Add voice clip to audio clips list
                 audio_clips.append(voice_clip)
-                # Add a small buffer (0.5s) to ensure text stays visible after narration
-                slide_duration = voice_clip.duration + 0.5
-                log(f"Using voice line for slide {i+1}: {slide_duration:.2f}s starting at {current_time:.2f}s", "🔊")
+                # Add a configurable delay after narration to ensure text stays visible
+                voice_line_delay = CONFIG["video"].get("voice_line_delay", 0.5)
+                slide_duration = voice_clip.duration + voice_line_delay
+                log(f"Using voice line for slide {i+1}: {slide_duration:.2f}s starting at {current_time:.2f}s (delay: {voice_line_delay:.1f}s)", "🔊")
             except Exception as e:
                 log(f"Error reading voice line {voice_line_filename}: {str(e)}", "⚠️")
                 slide_duration = slide['duration_seconds']

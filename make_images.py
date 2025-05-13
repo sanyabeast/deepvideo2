@@ -34,6 +34,9 @@ import io
 import shutil
 import re
 
+# Import configuration utilities
+from utils.config_utils import load_config
+
 # Define default workflow with placeholders as a raw multiline string
 DEFAULT_WORKFLOW = r'''{
       "5": {
@@ -284,34 +287,6 @@ def update_progress(scenario_index, total_scenarios, slide_index, total_slides, 
     # Add a line break to ensure next messages start on a new line
     print()
 
-def load_config(config_path=None):
-    """Load configuration from YAML file."""
-    if config_path is None:
-        log("Error: No config file specified.", "❌")
-        log("Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml", "💡")
-        sys.exit(1)
-    
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        
-        # Extract project name from config filename if not specified
-        if 'project_name' not in config:
-            # Get the filename without extension
-            config_filename = os.path.basename(config_path)
-            config_name = os.path.splitext(config_filename)[0]
-            config['project_name'] = config_name
-            log(f"Using config filename '{config_name}' as project name", "ℹ️")
-        
-        return config
-    except FileNotFoundError:
-        log(f"Error: Config file not found: {config_path}", "❌")
-        log(f"Hint: Make sure the config file exists. Example: configs/sample.yaml", "💡")
-        sys.exit(1)
-    except yaml.YAMLError as e:
-        log(f"Error parsing config file: {e}", "❌")
-        sys.exit(1)
-
 def load_scenario(scenario_file):
     """Load a scenario from a YAML file."""
     try:
@@ -320,6 +295,8 @@ def load_scenario(scenario_file):
     except Exception as e:
         log(f"Error loading scenario file {scenario_file}: {str(e)}", "❌")
         return None
+
+
 
 def ensure_dir_exists(directory):
     """Create directory if it doesn't exist."""
@@ -778,12 +755,18 @@ def main():
     if "images" not in CONFIG:
         log("Warning: 'images' section not found in config file, using default values", "⚠️")
         CONFIG["images"] = {
+            "enabled": True,
             "comfy_server_address": "127.0.0.1:8188",
             "steps": 12,
             "default_negative_prompt": "text, watermark, signature, blurry, distorted, low resolution, poorly drawn, bad anatomy, deformed, disfigured, out of frame, cropped",
             "workflow": DEFAULT_WORKFLOW,
             "generation_timeout": 60  # Default timeout in seconds
         }
+    
+    # Check if image generation is enabled
+    if not CONFIG["images"].get("enabled", True):
+        log("Image generation is disabled in config. Exiting.", "🚫")
+        sys.exit(0)
     
     # Set ComfyUI server address
     COMFY_SERVER_ADDRESS = CONFIG["images"].get("comfy_server_address", "127.0.0.1:8188")

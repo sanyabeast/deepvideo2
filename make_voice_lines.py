@@ -1,15 +1,20 @@
 import os
-import yaml
-import requests
 import re
 import shutil
 import argparse
 import random
 import sys
+import yaml
 from pathlib import Path
 import numpy as np
 import librosa
 import soundfile as sf
+
+# Import the TTS provider system
+from tts_providers import get_tts_provider
+
+# Import configuration utilities
+from utils.config_utils import load_config
 
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -30,39 +35,10 @@ def log(message, emoji=None):
     else:
         print(message)
 
-def load_config(config_path=None):
-    """Load configuration from YAML file."""
-    if config_path is None:
-        log("Error: No config file specified.", "❌")
-        log("Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml", "💡")
-        sys.exit(1)
-    
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        
-        # Extract project name from config filename if not specified
-        if 'project_name' not in config:
-            # Get the filename without extension
-            config_filename = os.path.basename(config_path)
-            config_name = os.path.splitext(config_filename)[0]
-            config['project_name'] = config_name
-            log(f"Using config filename '{config_name}' as project name", "ℹ️")
-        
-        return config
-    except FileNotFoundError:
-        log(f"Error: Config file not found: {config_path}", "❌")
-        log(f"Hint: Make sure the config file exists. Example: configs/sample.yaml", "💡")
-        sys.exit(1)
-    except yaml.YAMLError as e:
-        log(f"Error parsing config file: {e}", "❌")
-        sys.exit(1)
-
 # Global variables
 CONFIG = None
-ZONOS_TTS_SERVER = None
+TTS_PROVIDER = None
 VOICE_SAMPLES = None
-SPEECH_RATE = None
 SCENARIOS_DIR = None
 OUTPUT_DIR = None
 
@@ -112,64 +88,18 @@ def normalize_path(path):
     """Normalize path to use forward slashes consistently."""
     return str(Path(path)).replace('\\', '/')
 
-def preprocess_text_for_tts(text):
-    """Preprocess text to make it more compatible with Zonos TTS server.
-    
-    Args:
-        text: The original text to preprocess
-        
-    Returns:
-        Preprocessed text with problematic characters removed/replaced
-    """
-    if not text:
-        return text
-    
-    # 1. Remove all double quotes
-    text = text.replace('"', "")
-    
-    # 2. Replace three-dots (ellipsis) with a single dot
-    text = text.replace("...", ".").replace(". . .", ".")
-    
-    # 3. Remove the word "ugh" (case insensitive)
-    text = re.sub(r'\bugh\b', '', text, flags=re.IGNORECASE)
-    
-    # Remove any double spaces created by the replacements
-    text = re.sub(r'\s+', ' ', text).strip()
-    
-    return text
-
 def generate_voice_line(text, output_path, emotion, voice_sample):
-    """Generate voice line using Zonos TTS server."""
-    # Normalize the output path to use forward slashes
-    normalized_output_path = normalize_path(output_path)
-    
-    # Preprocess text for better TTS compatibility
+    """Generate voice line using the configured TTS provider."""
+    # Preprocess text for better TTS compatibility (now handled by the provider)
     original_text = text
-    processed_text = preprocess_text_for_tts(text)
+    processed_text = TTS_PROVIDER.preprocess_text(text)
     
     # Log if text was modified
     if processed_text != original_text:
         log(f"Preprocessed text: \"{original_text}\" → \"{processed_text}\"", "🔄")
     
-    params = {
-        'text': processed_text,
-        'path': normalized_output_path,
-        'voice': voice_sample,
-        'emotion': emotion.capitalize(),  # Capitalize emotion for the API
-        'rate': SPEECH_RATE
-    }
-    
-    try:
-        log("Sending request to TTS server...", "🔄")
-        response = requests.get(ZONOS_TTS_SERVER, params=params)
-        if response.status_code == 200:
-            return True
-        else:
-            log(f"Error generating voice line: {response.text}", "⚠️")
-            return False
-    except Exception as e:
-        log(f"Exception when calling TTS API: {str(e)}", "⚠️")
-        return False
+    log("Sending request to TTS server...", "🔄")
+    return TTS_PROVIDER.generate_voice_line(text, output_path, emotion, voice_sample)
 
 def normalize_audio(input_path, output_path=None, target_db=-20.0):
     """
@@ -288,27 +218,52 @@ def process_scenario(scenario_file, force_regenerate=False, normalize_audio_sett
     log(f"Generating voice lines for: {scenario['topic']}")
     log("="*50)
     
-    # Select a random voice sample for this scenario
-    voice_sample = random.choice(VOICE_SAMPLES)
-    voice_name = os.path.basename(voice_sample)
-    log(f"Selected voice: {voice_name}", "🎙️")
+    # Handle voice selection based on provider
+    voice_config = CONFIG.get("voice", {})
+    provider_name = voice_config.get("provider", "zonos")
     
-    # Get normalization settings from config
+    if provider_name == "zonos":
+        # For Zonos, select a random voice sample
+        if not VOICE_SAMPLES:
+            log("Error: No voice samples configured for Zonos provider", "❌")
+            return
+        voice_sample = random.choice(VOICE_SAMPLES)
+        voice_name = os.path.basename(voice_sample)
+        log(f"Selected voice: {voice_name}", "🎤️")
+    elif provider_name == "orpheus":
+        # For Orpheus, select a random voice preset
+        voice_presets = voice_config.get("orpheus_settings", {}).get("voice_presets", [])
+        if not voice_presets:
+            log("Warning: No voice presets configured for Orpheus provider, using default", "⚠️")
+            voice_sample = None
+        else:
+            voice_sample = random.choice(voice_presets)
+            log(f"Selected voice preset: {voice_sample}", "🎤️")
+    else:
+        # Default case
+        voice_sample = None
+        log(f"Using default voice for provider: {provider_name}", "🎤️")
+    
+    # Get postprocessing settings from config
+    postprocessing = CONFIG.get("voice", {}).get("postprocessing", {})
+    
+    # Get normalization settings
     if normalize_audio_setting is None:
-        normalization_enabled = CONFIG.get("voice", {}).get("normalization", {}).get("enabled", False)
+        normalization_enabled = postprocessing.get("normalization", {}).get("enabled", False)
     else:
         normalization_enabled = normalize_audio_setting
     
     if target_db is None:
-        target_db = CONFIG.get("voice", {}).get("normalization", {}).get("target_db", -20.0)
+        target_db = postprocessing.get("normalization", {}).get("target_db", -20.0)
     
     if normalization_enabled:
         log(f"Audio normalization enabled (target: {target_db} dB)", "🔊")
     
-    # Get silence trimming settings from config
-    silence_trimming_enabled = CONFIG.get("voice", {}).get("silence_trimming", {}).get("enabled", True)
-    max_silence_sec = CONFIG.get("voice", {}).get("silence_trimming", {}).get("max_silence_sec", 1.0)
-    threshold_db = CONFIG.get("voice", {}).get("silence_trimming", {}).get("threshold_db", -50)
+    # Get silence trimming settings
+    silence_trimming = postprocessing.get("silence_trimming", {})
+    silence_trimming_enabled = silence_trimming.get("enabled", True)
+    max_silence_sec = silence_trimming.get("max_silence_sec", 1.0)
+    threshold_db = silence_trimming.get("threshold_db", -50)
     
     if silence_trimming_enabled:
         log(f"Silence trimming enabled (max: {max_silence_sec}s, threshold: {threshold_db} dB)", "✂️")
@@ -385,26 +340,45 @@ def parse_arguments():
 
 def main():
     """Main function to process all scenarios."""
+    global CONFIG, TTS_PROVIDER, VOICE_SAMPLES, SCENARIOS_DIR, OUTPUT_DIR
+    
+    # Parse command line arguments
     args = parse_arguments()
     
-    # Load configuration from specified file
-    global CONFIG, ZONOS_TTS_SERVER, VOICE_SAMPLES, SPEECH_RATE, SCENARIOS_DIR, OUTPUT_DIR
+    # Load configuration
     CONFIG = load_config(args.config)
     
-    # Voice generation settings
-    ZONOS_TTS_SERVER = CONFIG["voice"]["zonos_tts_server"]
-    VOICE_SAMPLES = CONFIG["voice"]["voice_samples"]
-    SPEECH_RATE = CONFIG["voice"]["speech_rate"]
+    # Get voice configuration
+    voice_config = CONFIG.get('voice', {})
+    provider_name = voice_config.get('provider', 'zonos')
     
-    # Directory settings
-    SCENARIOS_DIR = CONFIG["directories"]["scenarios"]
-    OUTPUT_DIR = CONFIG["directories"]["voice_lines"]
+    # Set up voice samples based on provider
+    if provider_name == 'zonos':
+        VOICE_SAMPLES = voice_config.get('zonos_settings', {}).get('voice_samples', [])
+    elif provider_name == 'orpheus':
+        # For Orpheus, voice presets are handled internally by the provider
+        VOICE_SAMPLES = []
+    else:
+        VOICE_SAMPLES = []
+    
+    # Initialize the TTS provider
+    try:
+        TTS_PROVIDER = get_tts_provider(voice_config)
+        log(f"Initialized TTS provider: {TTS_PROVIDER.__class__.__name__}", "🔊")
+    except ValueError as e:
+        log(f"Error initializing TTS provider: {str(e)}", "❌")
+        sys.exit(1)
+    
+    # Get directory paths
+    SCENARIOS_DIR = CONFIG.get('directories', {}).get('scenarios', 'scenarios')
+    OUTPUT_DIR = CONFIG.get('directories', {}).get('voice_lines', 'voice_lines')
     
     # Get project name
     project_name = CONFIG.get("project_name")
     
     # Print startup message
     log(f"Starting {project_name} voice line generation...", "🚀")
+    log(f"Using TTS provider: {provider_name.upper()}", "🎙️")
     
     # Clean output directory if requested
     output_dir_path = os.path.join(PROJECT_DIR, "output", project_name, OUTPUT_DIR)

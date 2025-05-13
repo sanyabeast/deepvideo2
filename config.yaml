@@ -1,50 +1,95 @@
 # ─────────────────────────────────────────────────────
-# 🎲 SAMPLE CONFIGURATION FILE
+# 🌍 GLOBAL CONFIGURATION
 # ─────────────────────────────────────────────────────
-# This is a sample configuration file for DeepVideo2.
-# Copy this file and modify it for your own projects.
-# 
-# NOTE: The filename (without extension) will be used as the project name.
-# For example, if you name this file "motivation.yaml", the project name will be "motivation".
+# This file contains global settings that apply to all projects.
+# Project-specific configs will be merged with this global config.
 
 # LLM Configuration
+
 llm:
   default_model: "amoral-gemma3-12b-v2-qat"  # Your local LLM model name
   seed: 0  # Will be randomized at runtime if not specified
 
 # Voice Generation Configuration
 voice:
-  zonos_tts_server: "http://localhost:5001/generate"  # URL to your TTS server
-  voice_samples:
-    - "C:\\path\\to\\voice\\sample1.mp3"  # Path to voice sample files
-    - "C:\\path\\to\\voice\\sample2.mp3"
-  speech_rate: "15"  # Speech rate for TTS (higher = faster)
-  normalization:
-    target_db: -20.0  # Target dB level for audio normalization
-    enabled: true     # Whether to automatically normalize generated voice lines
-  silence_trimming:
-    enabled: true     # Whether to trim silence from the end of voice lines
-    max_silence_sec: 1.0  # Maximum silence to keep at the end in seconds
-    threshold_db: -50  # Threshold in dB below which audio is considered silence
+  # TTS provider to use ("zonos" or "orpheus")
+  provider: "orpheus"
+  
+  # Zonos provider settings
+  zonos_settings:
+    # URL to your Zonos TTS server
+    tts_server: "http://localhost:5001/generate"
+    # Speech rate for Zonos TTS (higher = faster)
+    speech_rate: "15"
+    # Voice samples to use
+    voice_samples:
+      - "C:\\ML\\database\\voice\\ai1-en-US-Joseph.mp3"
+      - "C:\\ML\\database\\voice\\ai1-en-US-Jack.mp3"
+      - "C:\\ML\\database\\voice\\ai2-STD-en-US-Soren.mp3"
+      - "C:\\ML\\database\\voice\\ai2-Robert2.mp3"
+      - "C:\\ML\\database\\voice\\ai2-en-US-Katie2.mp3"
+      - "C:\\ML\\database\\voice\\ai2-en-US-Isabella2.mp3"
+      - "C:\\ML\\database\\voice\\ai2-Stacy.mp3"
+      - "C:\\ML\\database\\voice\\ai3-Aria.mp3"
+  
+  # Orpheus provider settings
+  orpheus_settings:
+    # URL to your Orpheus TTS server
+    tts_server: "http://localhost:5005/v1/audio/speech"
+    # Model name for Orpheus TTS
+    model: "orpheus"
+    # Voice presets to use
+    voice_presets: ["leah", "dan", "leo", "jess"]
+    # Speed factor (0.1 to 1.0, lower is slower)
+    speed: 1
+  
+  # Audio post-processing settings
+  postprocessing:
+    # Audio normalization settings
+    normalization:
+      target_db: -20.0  # Target dB level for audio normalization
+      enabled: true     # Whether to automatically normalize generated voice lines
+    # Silence trimming settings
+    silence_trimming:
+      enabled: false     # Whether to trim silence from the end of voice lines
+      max_silence_sec: 1.0  # Maximum silence to keep at the end in seconds
+      threshold_db: -50  # Threshold in dB below which audio is considered silence
+    # Tempo manipulation settings (not enabled by default)
+    tempo:
+      enabled: false  # Set to true to enable
+      factor: 0.9     # < 1.0 slows down, > 1.0 speeds up
+    # Echo effect settings (not enabled by default)
+    echo:
+      enabled: false  # Set to true to enable
+      delay: 0.1      # Delay in seconds
+      decay: 0.1      # Echo volume decay (0-1)
 
 # Video Generation Configuration
 video:
-  imagemagick_binary: "C:\\path\\to\\ImageMagick\\magick.exe"  # Path to ImageMagick binary
+  # ImageMagick configuration
+  imagemagick_binary: "C:\\Dev\\ImageMagick\\magick.exe"  # Path to ImageMagick binary
+
+  # Volume settings
   background_music_volume: 0.2  # Volume multiplier for background music (0.0 to 1.0)
   voice_narration_volume: 1.0   # Volume multiplier for voice narration (0.0 to 1.0)
   use_consistent_font: true     # Use the same font for all slides in a scenario
   intro_delay: 1.0              # Delay in seconds before the first slide appears
   outro_delay: 2.0              # Delay in seconds after the last slide before the video ends
-  emoji_enabled: true           # Whether to render emojis in videos (true = enabled, false = disabled)
-  emoji_font: "lib/noto_sans_emoji.ttf"  # Path to emoji font file (relative to project root)
-  emoji_scale: 1.5              # Scale factor for emoji size (1.0 = normal, 1.5 = 50% larger)
-  emoji_rotation:
-    enabled: true               # Whether to randomly rotate emojis
-    min_angle: -30              # Minimum rotation angle in degrees
-    max_angle: 30               # Maximum rotation angle in degrees
+  voice_line_delay: 0.25        # Delay in seconds after each voice line before the next slide
+
+  # Emoji settings
+  emoji:
+    enabled: true               # Whether to render emojis in videos (true = enabled, false = disabled)
+    font: "lib/noto_sans_emoji.ttf"  # Path to emoji font file (relative to project root)
+    scale: 1.5                 # Scale factor for emoji size (1.0 = normal, 1.5 = 50% larger)
+    rotation:
+      enabled: true            # Whether to randomly rotate emojis
+      min_angle: -30           # Minimum rotation angle in degrees
+      max_angle: 30            # Maximum rotation angle in degrees
 
 # Image Generation Configuration
 images:
+  enabled: false  # Set to false to disable image generation
   comfy_server_address: "127.0.0.1:8188"  # URL to the ComfyUI server
   steps: 12  # Number of steps for image generation
   default_negative_prompt: "text, watermark, signature, blurry, distorted, low resolution, poorly drawn, bad anatomy, deformed, disfigured, out of frame, cropped"  # Default negative prompt
