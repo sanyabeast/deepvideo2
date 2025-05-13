@@ -13,9 +13,42 @@ from typing import Dict, Any, Optional
 # Get the absolute path of the project directory
 PROJECT_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
+def validate_config(config: Dict[str, Any]) -> None:
+    """
+    Validate configuration requirements.
+    
+    Args:
+        config: Configuration dictionary to validate
+        
+    Raises:
+        ValueError: If validation fails
+    """
+    # Check required sections
+    if "prompts" not in config:
+        raise ValueError("Missing 'prompts' section in config")
+    
+    prompts = config["prompts"]
+    if "topics" not in prompts or "scenario" not in prompts:
+        raise ValueError("Config must have both 'topics' and 'scenario' sections under 'prompts'")
+    
+    # Check topics prompt
+    topics_prompt = prompts["topics"]
+    if "instruction" not in topics_prompt:
+        raise ValueError("Missing 'instruction' in topics prompt")
+    if "{THEME}" not in topics_prompt["instruction"]:
+        raise ValueError("Topics prompt instruction must contain {THEME} placeholder")
+    
+    # Check scenario prompt
+    scenario_prompt = prompts["scenario"]
+    if "instruction" not in scenario_prompt:
+        raise ValueError("Missing 'instruction' in scenario prompt")
+    if "{TOPIC}" not in scenario_prompt["instruction"]:
+        raise ValueError("Scenario prompt instruction must contain {TOPIC} placeholder")
+
 def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
     """
     Deep merge two dictionaries. Values in override will take precedence over values in base.
+    Lists are overridden, not merged.
     
     Args:
         base: Base dictionary
@@ -31,7 +64,7 @@ def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = deep_merge(result[key], value)
         else:
-            # Otherwise, override the value
+            # For lists and all other values, override completely
             result[key] = value
             
     return result
@@ -58,6 +91,7 @@ def load_global_config() -> Dict[str, Any]:
 def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Load configuration from a YAML file and merge it with the global configuration.
+    Validates the final merged configuration.
     
     Args:
         config_path: Path to the project-specific config file. Can be either:
@@ -66,6 +100,9 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
         
     Returns:
         Merged configuration dictionary
+        
+    Raises:
+        ValueError: If configuration validation fails
     """
     if config_path is None:
         print("❌ Error: No config file specified.")
@@ -97,7 +134,10 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
         
         # Merge global and project configs
         merged_config = deep_merge(global_config, project_config)
-        
+        # Validate the merged configuration
+        validate_config(merged_config)
+    
+        # Return the merged configuration
         return merged_config
     except FileNotFoundError:
         print(f"❌ Error: Config file not found: {config_path}")

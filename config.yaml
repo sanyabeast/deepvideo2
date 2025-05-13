@@ -281,12 +281,25 @@ emotions:
   - "anger"
   - "neutral"
 
+# Themes Configuration
+themes:
+  - mindset
+  - success
+  - growth
+  - productivity
+  - leadership
+  - creativity
+  - resilience
+  - self_improvement
+  - habits
+  - discipline
+
 # Prompt Configuration
 prompts:
   # Topics generation prompt
   topics:
     role: "You are a creative and insightful motivational content strategist for short-form video platforms (TikTok, Reels, YouTube Shorts)."
-    instruction: "Generate a list of 5 **fresh and unconventional motivational video topics**. Avoid cliché, overused ideas like \"overcoming fear\" or \"imposter syndrome\". Be unique, thought-provoking, and modern."
+    instruction: "Generate a list of 5 **fresh and unconventional video topics about {THEME}**. Focus specifically on this theme and avoid cliché, overused ideas. Be unique, thought-provoking, and modern."
     requirements:
       - "Be specific and catchy"
       - "Appeal to younger audiences (Gen Z, Millennials)"
@@ -299,7 +312,7 @@ prompts:
   # Scenario generation prompt
   scenario:
     role: "You are a short-form video copywriter crafting motivational videos for TikTok, Reels, and YouTube Shorts."
-    instruction: "Create a **micro-story split into short slides** (like Instagram story frames) for the topic: \"{topic}\""
+    instruction: "Create a **micro-story split into short slides** (like Instagram story frames) for the topic: \"{TOPIC}\""
     constraints:
       - "Total video duration: **8-16 seconds max**"
       - "Each slide: **very short sentence or phrase**, 3–8 words"

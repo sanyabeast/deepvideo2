@@ -8,6 +8,8 @@ DeepVideo2 is a Python-based video generation system that transforms YAML scenar
 
 ## Features
 
+- **Theme-Based Topic Generation**: Generate topics based on predefined themes in project configs
+- **Configuration Validation**: Automatic validation of config files to ensure required placeholders and sections
 - **Text-to-Video Generation**: Convert YAML scenario files into complete videos with text overlays
 - **Enhanced Emoji Support**: Render colorful emojis with configurable size, rotation, and positioning
 - **Custom Font Integration**: Use custom fonts for text rendering with proper ImageMagick integration
@@ -90,6 +92,39 @@ deepvideo2/
 ## Configuration Options
 
 The configuration file (`configs/sample.yaml` or your custom config) supports the following options:
+
+### Project Configuration
+
+Each project has its own configuration file in the `configs/` directory (e.g., `motivation.yaml`, `spooky.yaml`). These files define:
+
+1. **Themes**: A list of themes used to generate topics
+2. **Prompts**:
+   - **Topics**: Instructions for generating topics based on themes
+   - **Scenario**: Instructions for creating slides based on topics
+
+Example project configuration:
+
+```yaml
+themes:
+  - urban_folklore
+  - liminal_spaces
+  - radio_static
+
+prompts:
+  topics:
+    role: "You are an archivist..."
+    instruction: "Based on the theme '{THEME}', generate 5 topics..."
+    requirements:
+      - "Make topics mysterious"
+      - "Use plain English"
+
+  scenario:
+    role: "You are a writer..."
+    instruction: "Create a story for the topic '{TOPIC}'..."
+    constraints:
+      - "Total duration: 8-16 seconds"
+      - "3-9 words per slide"
+```
 
 ### Video Configuration
 

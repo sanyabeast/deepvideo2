@@ -155,7 +155,7 @@ def print_subheader(title: str):
 # ─────────────────────────────────────────────────────
 # 🧠 LLM PROMPTS
 # ─────────────────────────────────────────────────────
-def get_topics(model, existing_topics=None) -> TopicsList:
+def get_topics(model, existing_topics=None, selected_theme=None) -> TopicsList:
     print_header(f"Generating fresh topics (seed: {seed})")
     
     if existing_topics and len(existing_topics) > 0:
@@ -167,6 +167,9 @@ def get_topics(model, existing_topics=None) -> TopicsList:
     role = CONFIG["prompts"]["topics"]["role"]
     instruction = CONFIG["prompts"]["topics"]["instruction"]
     requirements = CONFIG["prompts"]["topics"]["requirements"]
+    
+    # Replace theme placeholder in instruction
+    instruction = instruction.replace("{THEME}", selected_theme)
     
     # Build the prompt
     prompt = f"""
@@ -237,7 +240,7 @@ def get_scenario(model, topic):
 
     # Get prompt components from config
     role = CONFIG["prompts"]["scenario"]["role"]
-    instruction = CONFIG["prompts"]["scenario"]["instruction"].format(topic=topic)
+    instruction = CONFIG["prompts"]["scenario"]["instruction"].format(TOPIC=topic)
     constraints = CONFIG["prompts"]["scenario"]["constraints"]
     style = CONFIG["prompts"]["scenario"]["style"]
     
@@ -445,8 +448,13 @@ def main():
                     "seed": seed,
                 })
         
+        # Select a random theme for this iteration
+        themes = CONFIG.get("themes", ["motivation", "success", "growth", "mindset"])  # Default themes if not specified
+        selected_theme = random.choice(themes)
+        print_subheader(f"🎯 Selected theme: {selected_theme}")
+        
         # Get topics, avoiding existing ones
-        topics = get_topics(model, existing_topics)
+        topics = get_topics(model, existing_topics, selected_theme)
         selected_topic = random.choice(topics)
         
         print_subheader(f"🎯 Selected topic: {selected_topic}")
