@@ -9,7 +9,7 @@
 
 # LLM Configuration
 llm:
-  default_model: "meta-llama-3.1-8b-instruct"  # Your local LLM model name
+  default_model: "amoral-gemma3-12b-v2-qat"  # Your local LLM model name
   seed: 0  # Will be randomized at runtime if not specified
 
 # Voice Generation Configuration
