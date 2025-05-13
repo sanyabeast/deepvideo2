@@ -60,19 +60,28 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     Load configuration from a YAML file and merge it with the global configuration.
     
     Args:
-        config_path: Path to the project-specific config file
+        config_path: Path to the project-specific config file. Can be either:
+            - Full path (e.g. 'configs/motivation.yaml')
+            - Just the name (e.g. 'motivation')
         
     Returns:
         Merged configuration dictionary
     """
     if config_path is None:
         print("❌ Error: No config file specified.")
-        print("💡 Hint: Use -c or --config to specify a config file. Example: -c configs/sample.yaml")
+        print("💡 Hint: Use -c or --config to specify a config file. Examples:")
+        print("   -c configs/motivation.yaml")
+        print("   -c motivation")
         sys.exit(1)
     
     try:
         # Load global config first
         global_config = load_global_config()
+        
+        # If config_path doesn't end in .yaml, assume it's a shorthand name
+        if not config_path.lower().endswith('.yaml'):
+            config_path = os.path.join(PROJECT_DIR, 'configs', f"{config_path}.yaml")
+            print(f"ℹ️ Using config file: {config_path}")
         
         # Load project-specific config
         with open(config_path, 'r', encoding='utf-8') as f:
