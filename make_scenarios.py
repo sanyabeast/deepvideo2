@@ -383,27 +383,12 @@ def save_yaml(filename, data):
 # ─────────────────────────────────────────────────────
 # 🚀 MAIN ENTRY
 # ─────────────────────────────────────────────────────
-def main():
-    global seed, CONFIG, default_model_name, emotions
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Generate video scenarios')
-    parser.add_argument('-c', '--config', type=str, required=True,
-                        help='Path to the configuration file')
-    parser.add_argument('-n', '--iterations', type=int, default=1, 
-                        help='Number of scenarios to generate (default: 1)')
-    parser.add_argument('-m', '--model', type=str,
-                        help='Model name to use')
-    args = parser.parse_args()
+def process_config(config: dict, model, args, existing_topics: list) -> list:
+    """Process a single configuration file."""
+    global CONFIG, seed, default_model_name, emotions
     
-    # Load configuration
-    CONFIG = load_config(args.config)
-    
-    # Get project name from config
-    project_name = CONFIG.get("project_name")
-    print(f"DEBUG: Config file: {args.config}")
-    print(f"DEBUG: Project name from config: {project_name}")
-    
-    # Print startup message
+    CONFIG = config
+    project_name = config.get("project_name")
     print(f"\n🚀 Starting {project_name} scenario generation")
     
     # Set seed if not specified in config
@@ -417,23 +402,7 @@ def main():
     # Get emotions list from config
     emotions = CONFIG["emotions"]
     
-    # If model not specified in command line, use the default from config
-    if args.model is None:
-        args.model = default_model_name
-    
-    # Initialize the model with the specified model name
-    model_name = args.model
-    model = lms.llm(model_name, config={
-        "seed": seed,
-    })
-    
-    print(f"✨ Using model: {model_name}")
     print(f"🔑 Random seed: {seed}")
-    
-    # Get existing topics to avoid duplicates
-    existing_topics = get_existing_topics()
-    if existing_topics:
-        print(f"📚 Found {len(existing_topics)} existing scenarios")
     
     # Run the specified number of iterations
     for i in range(args.iterations):
@@ -444,9 +413,7 @@ def main():
                 seed = random.randint(0, 1000000)
                 print(f"🔑 New seed: {seed}")
                 # Update model seed for new iteration
-                model = lms.llm(model_name, config={
-                    "seed": seed,
-                })
+                model = lms.llm(model.model_name, config={"seed": seed})
         
         # Select a random theme for this iteration
         themes = CONFIG.get("themes", ["motivation", "success", "growth", "mindset"])  # Default themes if not specified
@@ -467,6 +434,43 @@ def main():
         
         # Add the new topic to existing topics to avoid duplicates in subsequent iterations
         existing_topics.append(selected_topic)
+    
+    return existing_topics
+
+def main():
+    global seed, CONFIG, default_model_name, emotions
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Generate video scenarios')
+    parser.add_argument('-c', '--config', type=str, required=True,
+                        help='Path to the configuration file or "*" for all configs')
+    parser.add_argument('-n', '--iterations', type=int, default=1, 
+                        help='Number of scenarios to generate per config (default: 1)')
+    parser.add_argument('-m', '--model', type=str,
+                        help='Model name to use')
+    args = parser.parse_args()
+    
+    # Load configuration(s)
+    configs = load_config(args.config)
+    
+    # Handle both single config and multiple configs cases
+    if not isinstance(configs, list):
+        configs = [configs]
+    
+    # If model not specified in command line, use the default from first config
+    model_name = args.model or configs[0]["llm"]["default_model"]
+    print(f"✨ Using model: {model_name}")
+    
+    # Initialize the model with the specified model name
+    model = lms.llm(model_name, config={"seed": 0})  # Initial seed will be set per config
+    
+    # Get existing topics to avoid duplicates across all configs
+    existing_topics = get_existing_topics()
+    if existing_topics:
+        print(f"📚 Found {len(existing_topics)} existing scenarios")
+    
+    # Process each config
+    for config in configs:
+        existing_topics = process_config(config, model, args, existing_topics)
     
     print("\n🎉 All done!")
     

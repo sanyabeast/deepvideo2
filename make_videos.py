@@ -9,7 +9,7 @@ import platform
 from datetime import datetime
 import argparse
 from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, ColorClip, CompositeAudioClip, ImageClip
-from moviepy.config import change_settings
+from moviepy.config import IMAGEMAGICK_BINARY
 import emoji
 from PIL import ImageFont, Image, ImageDraw
 import numpy as np
@@ -1037,25 +1037,14 @@ def parse_args():
                         help='Skip using voice lines in the videos')
     return parser.parse_args()
 
-def main():
-    """Main function."""
-    args = parse_args()
-    
-    # Load configuration from specified file
+def process_config(config: dict, args) -> None:
+    """Process videos for a single configuration."""
     global CONFIG
-    CONFIG = load_config(args.config)
+    CONFIG = config
     
     # Configure MoviePy to use ImageMagick
-    change_settings({"IMAGEMAGICK_BINARY": CONFIG["video"]["imagemagick_binary"]})
-    
-    # Fix for PIL.Image.ANTIALIAS deprecation
-    try:
-        import PIL
-        if not hasattr(PIL.Image, 'ANTIALIAS'):
-            # For newer versions of Pillow, ANTIALIAS is renamed to LANCZOS
-            PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
-    except (ImportError, AttributeError):
-        pass
+    global IMAGEMAGICK_BINARY
+    IMAGEMAGICK_BINARY = CONFIG["video"]["imagemagick_binary"]
     
     # Update directory paths
     update_directories()
@@ -1141,6 +1130,30 @@ def main():
             else:
                 log("No videos were generated.", "❌")
 
+def main():
+    """Main function."""
+    args = parse_args()
+    
+    # Fix for PIL.Image.ANTIALIAS deprecation
+    try:
+        import PIL
+        if not hasattr(PIL.Image, 'ANTIALIAS'):
+            # For newer versions of Pillow, ANTIALIAS is renamed to LANCZOS
+            PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
+    except (ImportError, AttributeError):
+        pass
+    
+    # Load configuration(s)
+    configs = load_config(args.config)
+    
+    # Handle both single config and multiple configs cases
+    if not isinstance(configs, list):
+        configs = [configs]
+    
+    # Process each config
+    for config in configs:
+        process_config(config, args)
+    
     # Clean up temporary files
     cleanup_temp_files()
 

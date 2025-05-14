@@ -88,7 +88,38 @@ def load_global_config() -> Dict[str, Any]:
     else:
         return {}
 
-def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+def load_all_configs() -> list[Dict[str, Any]]:
+    """
+    Load all configuration files from the configs directory.
+    
+    Returns:
+        List of merged configuration dictionaries
+    """
+    configs_dir = os.path.join(PROJECT_DIR, 'configs')
+    configs = []
+    
+    # List all .yaml files in configs directory
+    for file in os.listdir(configs_dir):
+        if file.endswith('.yaml'):
+            config_path = os.path.join(configs_dir, file)
+            try:
+                config = load_config(config_path, validate=False)  # Skip validation for now
+                configs.append(config)
+            except Exception as e:
+                print(f"⚠️ Warning: Failed to load {file}: {e}")
+                continue
+    
+    # Validate all configs after loading
+    for config in configs:
+        try:
+            validate_config(config)
+        except ValueError as e:
+            print(f"⚠️ Warning: Invalid config {config.get('project_name', 'unknown')}: {e}")
+            configs.remove(config)
+    
+    return configs
+
+def load_config(config_path: Optional[str] = None, validate: bool = True) -> Dict[str, Any]:
     """
     Load configuration from a YAML file and merge it with the global configuration.
     Validates the final merged configuration.
@@ -109,7 +140,12 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
         print("💡 Hint: Use -c or --config to specify a config file. Examples:")
         print("   -c configs/motivation.yaml")
         print("   -c motivation")
+        print("   -c * (to process all configs)")
         sys.exit(1)
+        
+    # Handle wildcard to load all configs
+    if config_path == '*':
+        return load_all_configs()
     
     try:
         # Load global config first
@@ -134,8 +170,9 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
         
         # Merge global and project configs
         merged_config = deep_merge(global_config, project_config)
-        # Validate the merged configuration
-        validate_config(merged_config)
+        # Validate the merged configuration if requested
+        if validate:
+            validate_config(merged_config)
     
         # Return the merged configuration
         return merged_config

@@ -338,15 +338,11 @@ def parse_arguments():
                         help='Target dB level for audio normalization (overrides config)')
     return parser.parse_args()
 
-def main():
-    """Main function to process all scenarios."""
+def process_config(config: dict, args) -> None:
+    """Process voice lines for a single configuration."""
     global CONFIG, TTS_PROVIDER, VOICE_SAMPLES, SCENARIOS_DIR, OUTPUT_DIR
     
-    # Parse command line arguments
-    args = parse_arguments()
-    
-    # Load configuration
-    CONFIG = load_config(args.config)
+    CONFIG = config
     
     # Get voice configuration
     voice_config = CONFIG.get('voice', {})
@@ -361,13 +357,14 @@ def main():
     else:
         VOICE_SAMPLES = []
     
-    # Initialize the TTS provider
-    try:
-        TTS_PROVIDER = get_tts_provider(voice_config)
-        log(f"Initialized TTS provider: {TTS_PROVIDER.__class__.__name__}", "🔊")
-    except ValueError as e:
-        log(f"Error initializing TTS provider: {str(e)}", "❌")
-        sys.exit(1)
+    # Initialize the TTS provider if not already initialized or if provider changed
+    if TTS_PROVIDER is None or TTS_PROVIDER.__class__.__name__ != f"{provider_name.capitalize()}Provider":
+        try:
+            TTS_PROVIDER = get_tts_provider(voice_config)
+            log(f"Initialized TTS provider: {TTS_PROVIDER.__class__.__name__}", "🔊")
+        except ValueError as e:
+            log(f"Error initializing TTS provider: {str(e)}", "❌")
+            return
     
     # Get directory paths
     SCENARIOS_DIR = CONFIG.get('directories', {}).get('scenarios', 'scenarios')
@@ -378,7 +375,7 @@ def main():
     
     # Print startup message
     log(f"Starting {project_name} voice line generation...", "🚀")
-    log(f"Using TTS provider: {provider_name.upper()}", "🎙️")
+    log(f"Using TTS provider: {provider_name.upper()}", "🎤")
     
     # Clean output directory if requested
     output_dir_path = os.path.join(PROJECT_DIR, "output", project_name, OUTPUT_DIR)
@@ -402,8 +399,29 @@ def main():
         if args.target_db:
             target_db = args.target_db
         process_scenario(scenario_file, args.force, normalize_audio_setting, target_db)
+
+def main():
+    """Main function to process all scenarios."""
+    global CONFIG, TTS_PROVIDER, VOICE_SAMPLES, SCENARIOS_DIR, OUTPUT_DIR
     
-    log("Voice line generation complete!", "🎉")
+    # Parse command line arguments
+    args = parse_arguments()
+    
+    # Load configuration(s)
+    configs = load_config(args.config)
+    
+    # Handle both single config and multiple configs cases
+    if not isinstance(configs, list):
+        configs = [configs]
+    
+    # Initialize globals
+    TTS_PROVIDER = None
+    
+    # Process each config
+    for config in configs:
+        process_config(config, args)
+    
+    log("All voice line generation complete!", "🎉")
 
 if __name__ == "__main__":
     try:
